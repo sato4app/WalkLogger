@@ -1,0 +1,555 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#2196F3">
+    <title>WalkLogger - 歩行記録アプリ</title>
+    <link rel="manifest" href="manifest.json">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            background: #f5f5f5;
+        }
+
+        .header {
+            background: #2196F3;
+            color: white;
+            padding: 15px;
+            text-align: center;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        }
+
+        .main-container {
+            display: flex;
+            flex: 1;
+            overflow: hidden;
+        }
+
+        .log-area {
+            flex: 1;
+            padding: 15px;
+            overflow-y: auto;
+            background: white;
+            border-right: 1px solid #ddd;
+        }
+
+        .log-entry {
+            padding: 10px;
+            margin-bottom: 10px;
+            background: #f9f9f9;
+            border-left: 3px solid #2196F3;
+            border-radius: 3px;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+        }
+
+        .log-time {
+            color: #666;
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+
+        .log-coords {
+            color: #333;
+        }
+
+        .right-panel {
+            width: 250px;
+            display: flex;
+            flex-direction: column;
+            background: white;
+        }
+
+        .thumbnail-area {
+            padding: 15px;
+            text-align: center;
+            border-bottom: 1px solid #ddd;
+        }
+
+        .thumbnail-title {
+            font-size: 14px;
+            color: #666;
+            margin-bottom: 10px;
+        }
+
+        .thumbnail-container {
+            width: 100%;
+            height: 200px;
+            background: #f0f0f0;
+            border-radius: 8px;
+            overflow: hidden;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .thumbnail-container img {
+            max-width: 100%;
+            max-height: 100%;
+            object-fit: contain;
+        }
+
+        .thumbnail-placeholder {
+            color: #999;
+            font-size: 14px;
+        }
+
+        .button-area {
+            padding: 20px;
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+            background: white;
+            border-top: 1px solid #ddd;
+        }
+
+        button {
+            flex: 1;
+            padding: 15px;
+            font-size: 16px;
+            font-weight: bold;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        }
+
+        button:active {
+            transform: translateY(1px);
+            box-shadow: 0 1px 2px rgba(0,0,0,0.2);
+        }
+
+        #startBtn {
+            background: #4CAF50;
+            color: white;
+        }
+
+        #startBtn:hover {
+            background: #45a049;
+        }
+
+        #startBtn:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+
+        #stopBtn {
+            background: #f44336;
+            color: white;
+        }
+
+        #stopBtn:hover {
+            background: #da190b;
+        }
+
+        #stopBtn:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+
+        #photoBtn {
+            background: #2196F3;
+            color: white;
+        }
+
+        #photoBtn:hover {
+            background: #0b7dda;
+        }
+
+        .status {
+            padding: 10px;
+            text-align: center;
+            background: #fff3cd;
+            color: #856404;
+            border-bottom: 1px solid #ffeaa7;
+            font-size: 14px;
+        }
+
+        .status.recording {
+            background: #d4edda;
+            color: #155724;
+            border-bottom: 1px solid #c3e6cb;
+        }
+
+        /* レスポンシブ対応 */
+        @media (max-width: 768px) {
+            .main-container {
+                flex-direction: column;
+            }
+
+            .right-panel {
+                width: 100%;
+                flex-direction: row;
+            }
+
+            .thumbnail-area {
+                flex: 1;
+                border-bottom: none;
+                border-right: 1px solid #ddd;
+            }
+
+            .button-area {
+                flex: 1;
+                border-top: none;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🚶 WalkLogger</h1>
+    </div>
+
+    <div class="status" id="status">待機中</div>
+
+    <div class="main-container">
+        <div class="log-area" id="logArea">
+            <div class="log-entry">
+                <div class="log-time">アプリ起動完了</div>
+                <div class="log-coords">位置情報記録の準備ができました</div>
+            </div>
+        </div>
+
+        <div class="right-panel">
+            <div class="thumbnail-area">
+                <div class="thumbnail-title">最新の写真</div>
+                <div class="thumbnail-container" id="thumbnailContainer">
+                    <div class="thumbnail-placeholder">写真なし</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="button-area">
+        <button id="startBtn">Start</button>
+        <button id="stopBtn" disabled>Stop</button>
+        <button id="photoBtn">Photo</button>
+    </div>
+
+    <input type="file" id="photoInput" accept="image/*" capture="environment" style="display: none;">
+
+    <script>
+        // IndexedDB設定
+        const DB_NAME = 'WalkLoggerDB';
+        const DB_VERSION = 1;
+        let db = null;
+
+        // アプリの状態
+        let isRecording = false;
+        let watchId = null;
+
+        // IndexedDBの初期化
+        async function initDB() {
+            return new Promise((resolve, reject) => {
+                const request = indexedDB.open(DB_NAME, DB_VERSION);
+
+                request.onerror = () => reject(request.error);
+                request.onsuccess = () => {
+                    db = request.result;
+                    resolve(db);
+                };
+
+                request.onupgradeneeded = (event) => {
+                    const db = event.target.result;
+
+                    // ログストアの作成
+                    if (!db.objectStoreNames.contains('logs')) {
+                        const logStore = db.createObjectStore('logs', { keyPath: 'id', autoIncrement: true });
+                        logStore.createIndex('timestamp', 'timestamp', { unique: false });
+                    }
+
+                    // 写真ストアの作成
+                    if (!db.objectStoreNames.contains('photos')) {
+                        const photoStore = db.createObjectStore('photos', { keyPath: 'id', autoIncrement: true });
+                        photoStore.createIndex('timestamp', 'timestamp', { unique: false });
+                    }
+                };
+            });
+        }
+
+        // ログをIndexedDBに保存
+        async function saveLog(latitude, longitude) {
+            const transaction = db.transaction(['logs'], 'readwrite');
+            const store = transaction.objectStore('logs');
+            const log = {
+                timestamp: new Date().toISOString(),
+                latitude: latitude,
+                longitude: longitude
+            };
+            return store.add(log);
+        }
+
+        // 写真をIndexedDBに保存
+        async function savePhoto(imageData, thumbnailData) {
+            const transaction = db.transaction(['photos'], 'readwrite');
+            const store = transaction.objectStore('photos');
+            const photo = {
+                timestamp: new Date().toISOString(),
+                imageData: imageData,
+                thumbnailData: thumbnailData
+            };
+            return store.add(photo);
+        }
+
+        // 最新の写真を取得
+        async function getLatestPhoto() {
+            return new Promise((resolve, reject) => {
+                const transaction = db.transaction(['photos'], 'readonly');
+                const store = transaction.objectStore('photos');
+                const index = store.index('timestamp');
+                const request = index.openCursor(null, 'prev');
+
+                request.onsuccess = (event) => {
+                    const cursor = event.target.result;
+                    if (cursor) {
+                        resolve(cursor.value);
+                    } else {
+                        resolve(null);
+                    }
+                };
+
+                request.onerror = () => reject(request.error);
+            });
+        }
+
+        // ログ表示エリアに追加
+        function addLogToUI(time, latitude, longitude) {
+            const logArea = document.getElementById('logArea');
+            const entry = document.createElement('div');
+            entry.className = 'log-entry';
+
+            const timeDiv = document.createElement('div');
+            timeDiv.className = 'log-time';
+            timeDiv.textContent = time;
+
+            const coordsDiv = document.createElement('div');
+            coordsDiv.className = 'log-coords';
+            coordsDiv.textContent = `緯度: ${latitude.toFixed(5)}, 経度: ${longitude.toFixed(5)}`;
+
+            entry.appendChild(timeDiv);
+            entry.appendChild(coordsDiv);
+            logArea.insertBefore(entry, logArea.firstChild);
+
+            // スクロールを最上部に
+            logArea.scrollTop = 0;
+        }
+
+        // サムネイル表示を更新
+        function updateThumbnail(thumbnailData) {
+            const container = document.getElementById('thumbnailContainer');
+            container.innerHTML = '';
+
+            const img = document.createElement('img');
+            img.src = thumbnailData;
+            container.appendChild(img);
+        }
+
+        // 画像をリサイズしてサムネイルを作成
+        function createThumbnail(file, maxWidth = 200, maxHeight = 200) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    const img = new Image();
+                    img.onload = () => {
+                        const canvas = document.createElement('canvas');
+                        let width = img.width;
+                        let height = img.height;
+
+                        if (width > height) {
+                            if (width > maxWidth) {
+                                height *= maxWidth / width;
+                                width = maxWidth;
+                            }
+                        } else {
+                            if (height > maxHeight) {
+                                width *= maxHeight / height;
+                                height = maxHeight;
+                            }
+                        }
+
+                        canvas.width = width;
+                        canvas.height = height;
+                        const ctx = canvas.getContext('2d');
+                        ctx.drawImage(img, 0, 0, width, height);
+
+                        resolve(canvas.toDataURL('image/jpeg', 0.8));
+                    };
+                    img.onerror = reject;
+                    img.src = e.target.result;
+                };
+                reader.onerror = reject;
+                reader.readAsDataURL(file);
+            });
+        }
+
+        // 位置情報の記録開始
+        function startRecording() {
+            if (!navigator.geolocation) {
+                alert('お使いのブラウザは位置情報に対応していません。');
+                return;
+            }
+
+            const options = {
+                enableHighAccuracy: true,
+                timeout: 5000,
+                maximumAge: 0
+            };
+
+            watchId = navigator.geolocation.watchPosition(
+                (position) => {
+                    const lat = position.coords.latitude;
+                    const lng = position.coords.longitude;
+                    const now = new Date();
+                    const timeStr = now.toLocaleString('ja-JP');
+
+                    // UIに表示
+                    addLogToUI(timeStr, lat, lng);
+
+                    // IndexedDBに保存
+                    saveLog(lat, lng).catch(err => {
+                        console.error('ログ保存エラー:', err);
+                    });
+                },
+                (error) => {
+                    console.error('位置情報取得エラー:', error);
+                    let message = '位置情報の取得に失敗しました。';
+                    switch(error.code) {
+                        case error.PERMISSION_DENIED:
+                            message = '位置情報の使用が許可されていません。';
+                            break;
+                        case error.POSITION_UNAVAILABLE:
+                            message = '位置情報が利用できません。';
+                            break;
+                        case error.TIMEOUT:
+                            message = '位置情報の取得がタイムアウトしました。';
+                            break;
+                    }
+                    addLogToUI(new Date().toLocaleString('ja-JP'), 0, 0);
+                    alert(message);
+                },
+                options
+            );
+
+            isRecording = true;
+            document.getElementById('startBtn').disabled = true;
+            document.getElementById('stopBtn').disabled = false;
+            document.getElementById('status').textContent = '記録中...';
+            document.getElementById('status').className = 'status recording';
+        }
+
+        // 位置情報の記録停止
+        function stopRecording() {
+            if (watchId !== null) {
+                navigator.geolocation.clearWatch(watchId);
+                watchId = null;
+            }
+
+            isRecording = false;
+            document.getElementById('startBtn').disabled = false;
+            document.getElementById('stopBtn').disabled = true;
+            document.getElementById('status').textContent = '待機中';
+            document.getElementById('status').className = 'status';
+
+            addLogToUI(new Date().toLocaleString('ja-JP'), 0, 0);
+            const logArea = document.getElementById('logArea');
+            const entry = logArea.firstChild;
+            entry.querySelector('.log-coords').textContent = '記録を停止しました';
+        }
+
+        // 写真撮影
+        async function takePhoto(file) {
+            try {
+                // フル解像度の画像データ
+                const fullImageData = await new Promise((resolve, reject) => {
+                    const reader = new FileReader();
+                    reader.onload = (e) => resolve(e.target.result);
+                    reader.onerror = reject;
+                    reader.readAsDataURL(file);
+                });
+
+                // サムネイル作成
+                const thumbnailData = await createThumbnail(file);
+
+                // IndexedDBに保存
+                await savePhoto(fullImageData, thumbnailData);
+
+                // UIに表示
+                updateThumbnail(thumbnailData);
+
+                // ログに記録
+                addLogToUI(new Date().toLocaleString('ja-JP'), 0, 0);
+                const logArea = document.getElementById('logArea');
+                const entry = logArea.firstChild;
+                entry.querySelector('.log-coords').textContent = '写真を撮影しました';
+
+            } catch (error) {
+                console.error('写真保存エラー:', error);
+                alert('写真の保存に失敗しました。');
+            }
+        }
+
+        // 最新の写真を読み込み
+        async function loadLatestPhoto() {
+            try {
+                const photo = await getLatestPhoto();
+                if (photo && photo.thumbnailData) {
+                    updateThumbnail(photo.thumbnailData);
+                }
+            } catch (error) {
+                console.error('写真読み込みエラー:', error);
+            }
+        }
+
+        // イベントリスナーの設定
+        document.getElementById('startBtn').addEventListener('click', startRecording);
+        document.getElementById('stopBtn').addEventListener('click', stopRecording);
+        document.getElementById('photoBtn').addEventListener('click', () => {
+            document.getElementById('photoInput').click();
+        });
+        document.getElementById('photoInput').addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (file) {
+                takePhoto(file);
+            }
+            // inputをリセット（同じファイルを再選択可能にする）
+            e.target.value = '';
+        });
+
+        // Service Workerの登録
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('service-worker.js')
+                    .then(registration => {
+                        console.log('Service Worker登録成功:', registration.scope);
+                    })
+                    .catch(error => {
+                        console.log('Service Worker登録失敗:', error);
+                    });
+            });
+        }
+
+        // アプリ初期化
+        window.addEventListener('load', async () => {
+            try {
+                await initDB();
+                await loadLatestPhoto();
+                console.log('アプリ初期化完了');
+            } catch (error) {
+                console.error('初期化エラー:', error);
+                alert('アプリの初期化に失敗しました。');
+            }
+        });
+    </script>
+</body>
+</html>
