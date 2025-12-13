@@ -9,6 +9,13 @@ let isTracking = false;
 let trackingData = [];
 let currentPhotoData = null;
 
+// IndexedDB関連
+let db = null;
+const DB_NAME = 'WalkLoggerDB';
+const DB_VERSION = 1;
+const STORE_TRACKS = 'tracks';
+const STORE_PHOTOS = 'photos';
+
 // 緑の三角形マーカーアイコンを作成
 const triangleIcon = L.divIcon({
     className: 'triangle-marker',
@@ -16,6 +23,85 @@ const triangleIcon = L.divIcon({
     iconSize: [30, 30],
     iconAnchor: [15, 15]
 });
+
+// IndexedDBの初期化
+function initIndexedDB() {
+    return new Promise((resolve, reject) => {
+        const request = indexedDB.open(DB_NAME, DB_VERSION);
+
+        request.onerror = () => {
+            console.error('IndexedDB接続エラー:', request.error);
+            reject(request.error);
+        };
+
+        request.onsuccess = () => {
+            db = request.result;
+            console.log('IndexedDB接続成功');
+            resolve(db);
+        };
+
+        request.onupgradeneeded = (event) => {
+            db = event.target.result;
+            console.log('IndexedDBをアップグレード中...');
+
+            // tracksオブジェクトストアの作成
+            if (!db.objectStoreNames.contains(STORE_TRACKS)) {
+                const trackStore = db.createObjectStore(STORE_TRACKS, { keyPath: 'id', autoIncrement: true });
+                trackStore.createIndex('timestamp', 'timestamp', { unique: false });
+                console.log('tracksストアを作成しました');
+            }
+
+            // photosオブジェクトストアの作成
+            if (!db.objectStoreNames.contains(STORE_PHOTOS)) {
+                const photoStore = db.createObjectStore(STORE_PHOTOS, { keyPath: 'id', autoIncrement: true });
+                photoStore.createIndex('timestamp', 'timestamp', { unique: false });
+                console.log('photosストアを作成しました');
+            }
+        };
+    });
+}
+
+// IndexedDBのリセット（全データ削除）
+async function resetIndexedDB() {
+    if (!confirm('全てのデータを削除してデータベースを初期化しますか？\nこの操作は取り消せません。')) {
+        return;
+    }
+
+    try {
+        // データベースを閉じる
+        if (db) {
+            db.close();
+            db = null;
+        }
+
+        // データベースを削除
+        const deleteRequest = indexedDB.deleteDatabase(DB_NAME);
+
+        deleteRequest.onsuccess = async () => {
+            console.log('データベースを削除しました');
+            updateStatus('データベースを削除しました');
+
+            // 再初期化
+            await initIndexedDB();
+            updateStatus('データベースを初期化しました');
+            alert('データベースを初期化しました');
+        };
+
+        deleteRequest.onerror = () => {
+            console.error('データベース削除エラー:', deleteRequest.error);
+            updateStatus('データベース削除エラー');
+            alert('データベースの削除に失敗しました');
+        };
+
+        deleteRequest.onblocked = () => {
+            console.warn('データベース削除がブロックされました。他のタブを閉じてください。');
+            alert('データベースが使用中です。他のタブを閉じてから再度お試しください。');
+        };
+    } catch (error) {
+        console.error('リセットエラー:', error);
+        alert('データベースのリセットに失敗しました: ' + error.message);
+    }
+}
 
 // 地図の初期化
 function initMap() {
@@ -151,9 +237,14 @@ function stopTracking() {
     }
 }
 
-// トラッキングデータをローカルストレージに保存
-function saveTrackingData() {
-    const trackKey = `track_${new Date().getTime()}`;
+// トラッキングデータをIndexedDBに保存
+async function saveTrackingData() {
+    if (!db) {
+        console.error('データベースが初期化されていません');
+        updateStatus('データベース接続エラー');
+        return;
+    }
+
     const trackData = {
         timestamp: new Date().toISOString(),
         points: trackingData,
@@ -161,10 +252,21 @@ function saveTrackingData() {
     };
 
     try {
-        localStorage.setItem(trackKey, JSON.stringify(trackData));
-        console.log('トラッキングデータを保存しました:', trackKey);
+        const transaction = db.transaction([STORE_TRACKS], 'readwrite');
+        const store = transaction.objectStore(STORE_TRACKS);
+        const request = store.add(trackData);
+
+        request.onsuccess = () => {
+            console.log('トラッキングデータを保存しました。ID:', request.result);
+        };
+
+        request.onerror = () => {
+            console.error('データ保存エラー:', request.error);
+            updateStatus('データ保存エラー');
+        };
     } catch (e) {
         console.error('データ保存エラー:', e);
+        updateStatus('データ保存エラー');
     }
 }
 
@@ -197,20 +299,35 @@ function handlePhotoSelected(event) {
     reader.readAsDataURL(file);
 }
 
-// 写真を保存
-function savePhoto() {
+// 写真をIndexedDBに保存
+async function savePhoto() {
     if (!currentPhotoData) {
         return;
     }
 
-    const photoKey = `photo_${new Date().getTime()}`;
+    if (!db) {
+        alert('データベースが初期化されていません');
+        return;
+    }
+
     try {
-        localStorage.setItem(photoKey, JSON.stringify(currentPhotoData));
-        alert('写真を保存しました');
-        closePhotoModal();
+        const transaction = db.transaction([STORE_PHOTOS], 'readwrite');
+        const store = transaction.objectStore(STORE_PHOTOS);
+        const request = store.add(currentPhotoData);
+
+        request.onsuccess = () => {
+            console.log('写真を保存しました。ID:', request.result);
+            alert('写真を保存しました');
+            closePhotoModal();
+        };
+
+        request.onerror = () => {
+            console.error('写真保存エラー:', request.error);
+            alert('写真の保存に失敗しました');
+        };
     } catch (e) {
         console.error('写真保存エラー:', e);
-        alert('写真の保存に失敗しました。容量が不足している可能性があります。');
+        alert('写真の保存に失敗しました: ' + e.message);
     }
 }
 
@@ -237,11 +354,21 @@ function updateCoordinates(lat, lng, accuracy) {
 }
 
 // イベントリスナーの設定
-document.addEventListener('DOMContentLoaded', function() {
+document.addEventListener('DOMContentLoaded', async function() {
+    // IndexedDBを初期化
+    try {
+        await initIndexedDB();
+        console.log('IndexedDB初期化完了');
+    } catch (error) {
+        console.error('IndexedDB初期化エラー:', error);
+        updateStatus('データベース初期化エラー');
+    }
+
     // 地図を初期化
     initMap();
 
     // ボタンイベント
+    document.getElementById('initBtn').addEventListener('click', resetIndexedDB);
     document.getElementById('startBtn').addEventListener('click', startTracking);
     document.getElementById('stopBtn').addEventListener('click', stopTracking);
     document.getElementById('photoBtn').addEventListener('click', takePhoto);
