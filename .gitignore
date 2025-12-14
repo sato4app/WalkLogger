@@ -1,0 +1,25 @@
+# Firebase設定ファイル（APIキーを含むため）
+# 注意: GitHub Pagesで使用する場合はコミットが必要
+# firebase-config.js
+
+# ノードモジュール
+node_modules/
+
+# ビルド成果物
+dist/
+build/
+
+# 環境変数ファイル
+.env
+.env.local
+
+# IDEファイル
+.vscode/
+.idea/
+
+# OS生成ファイル
+.DS_Store
+Thumbs.db
+
+# ログファイル
+*.log
