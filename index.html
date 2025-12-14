@@ -14,11 +14,13 @@
 
     <!-- コントロールパネル -->
     <div id="controls">
-        <button id="initBtn" class="control-btn" title="データベース初期化">
+        <button id="saveBtn" class="control-btn" title="Firebaseに保存">
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2"/>
+                <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path>
+                <polyline points="17 21 17 13 7 13 7 21"></polyline>
+                <polyline points="7 3 7 8 15 8"></polyline>
             </svg>
-            <span>Init</span>
+            <span>Save</span>
         </button>
         <button id="startBtn" class="control-btn" title="GPS追跡開始">
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -63,6 +65,14 @@
     </div>
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+    <!-- Firebase SDK (Compat版) -->
+    <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
+
+    <!-- Firebase設定 -->
+    <script src="firebase-config.js"></script>
+
     <script src="app.js"></script>
 </body>
 </html>

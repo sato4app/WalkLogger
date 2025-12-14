@@ -8,6 +8,7 @@ let watchId = null;
 let isTracking = false;
 let trackingData = [];
 let currentPhotoData = null;
+let trackingStartTime = null; // Start時の日時
 
 // IndexedDB関連
 let db = null;
@@ -132,21 +133,140 @@ function getLastPosition() {
     });
 }
 
-// IndexedDBのリセット（全データ削除）
-async function resetIndexedDB() {
-    if (!confirm('全てのデータを削除してデータベースを初期化しますか？\nこの操作は取り消せません。')) {
+// IndexedDBのデータをFirebaseに保存
+async function saveToFirebase() {
+    if (!trackingStartTime) {
+        alert('追跡データがありません。先にGPS追跡を開始してください。');
+        return;
+    }
+
+    if (!confirm('IndexedDBのデータをFirebaseに保存しますか？\n保存後、IndexedDBは初期化されます。')) {
         return;
     }
 
     try {
-        // 現在保存されている最後の記録地点を取得
-        let savedPosition = null;
-        try {
-            savedPosition = await getLastPosition();
-        } catch (error) {
-            console.warn('保存された位置の取得に失敗:', error);
+        updateStatus('Firebaseに保存中...');
+
+        // IndexedDBから全データを取得
+        const allTracks = await getAllTracks();
+        const allPhotos = await getAllPhotos();
+        const lastPosition = await getLastPosition();
+
+        console.log('取得したデータ:', {
+            tracks: allTracks.length,
+            photos: allPhotos.length,
+            position: lastPosition
+        });
+
+        // Firebaseプロジェクト名（Start時の日時）
+        const projectName = trackingStartTime;
+        console.log('Firebaseプロジェクト名:', projectName);
+
+        // Firestoreに保存
+        const firestoreDb = firebase.firestore();
+        const projectRef = firestoreDb.collection('projects').doc(projectName);
+
+        // プロジェクトデータを作成
+        const projectData = {
+            startTime: trackingStartTime,
+            createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+            lastPosition: lastPosition,
+            tracksCount: allTracks.length,
+            photosCount: allPhotos.length
+        };
+
+        // プロジェクトドキュメントを保存
+        await projectRef.set(projectData);
+        console.log('プロジェクトデータを保存しました');
+
+        // トラッキングデータを保存
+        for (const track of allTracks) {
+            await projectRef.collection('tracks').add({
+                timestamp: track.timestamp,
+                points: track.points,
+                totalPoints: track.totalPoints
+            });
+        }
+        console.log(`${allTracks.length}件のトラッキングデータを保存しました`);
+
+        // 写真データを保存
+        for (const photo of allPhotos) {
+            await projectRef.collection('photos').add({
+                data: photo.data,
+                timestamp: photo.timestamp,
+                location: photo.location
+            });
+        }
+        console.log(`${allPhotos.length}件の写真データを保存しました`);
+
+        updateStatus('Firebase保存完了');
+        alert(`Firebaseに保存しました\nプロジェクト名: ${projectName}\nトラック: ${allTracks.length}件\n写真: ${allPhotos.length}件`);
+
+        // IndexedDBを初期化
+        await resetIndexedDBAfterSave(lastPosition);
+
+    } catch (error) {
+        console.error('Firebase保存エラー:', error);
+        updateStatus('Firebase保存エラー');
+        alert('Firebaseへの保存に失敗しました: ' + error.message);
+    }
+}
+
+// IndexedDBから全トラッキングデータを取得
+function getAllTracks() {
+    return new Promise((resolve, reject) => {
+        if (!db) {
+            reject(new Error('データベースが初期化されていません'));
+            return;
         }
 
+        try {
+            const transaction = db.transaction([STORE_TRACKS], 'readonly');
+            const store = transaction.objectStore(STORE_TRACKS);
+            const request = store.getAll();
+
+            request.onsuccess = () => {
+                resolve(request.result || []);
+            };
+
+            request.onerror = () => {
+                reject(request.error);
+            };
+        } catch (error) {
+            reject(error);
+        }
+    });
+}
+
+// IndexedDBから全写真データを取得
+function getAllPhotos() {
+    return new Promise((resolve, reject) => {
+        if (!db) {
+            reject(new Error('データベースが初期化されていません'));
+            return;
+        }
+
+        try {
+            const transaction = db.transaction([STORE_PHOTOS], 'readonly');
+            const store = transaction.objectStore(STORE_PHOTOS);
+            const request = store.getAll();
+
+            request.onsuccess = () => {
+                resolve(request.result || []);
+            };
+
+            request.onerror = () => {
+                reject(request.error);
+            };
+        } catch (error) {
+            reject(error);
+        }
+    });
+}
+
+// Firebase保存後のIndexedDB初期化
+async function resetIndexedDBAfterSave(savedPosition) {
+    try {
         // データベースを閉じる
         if (db) {
             db.close();
@@ -157,47 +277,39 @@ async function resetIndexedDB() {
         const deleteRequest = indexedDB.deleteDatabase(DB_NAME);
 
         deleteRequest.onsuccess = async () => {
-            console.log('データベースを削除しました');
-            updateStatus('データベースを削除しました');
+            console.log('IndexedDBを削除しました');
+            updateStatus('IndexedDBを初期化しました');
 
             // 再初期化
             await initIndexedDB();
 
-            // 最後の記録地点を初期地点として保存
+            // 最後の記録地点を復元
             if (savedPosition) {
-                // 保存されていた位置を復元
                 await saveLastPosition(savedPosition.lat, savedPosition.lng, savedPosition.zoom);
-                updateStatus('データベースを初期化しました');
-                alert('データベースを初期化しました\n最後の記録地点を初期地点として保存しました');
-                console.log('最後の記録地点を復元:', savedPosition.lat, savedPosition.lng);
-
-                // 地図を最後の記録地点に移動
-                map.setView([savedPosition.lat, savedPosition.lng], savedPosition.zoom);
+                console.log('最後の記録地点を復元しました');
             } else {
-                // 保存された位置がない場合はデフォルト位置（箕面大滝）を使用
                 await saveLastPosition(DEFAULT_POSITION.lat, DEFAULT_POSITION.lng, DEFAULT_POSITION.zoom);
-                updateStatus('データベースを初期化しました');
-                alert('データベースを初期化しました\nデフォルト位置（箕面大滝）を初期地点として保存しました');
                 console.log('デフォルト位置を設定しました');
-
-                // 地図をデフォルト位置に移動
-                map.setView([DEFAULT_POSITION.lat, DEFAULT_POSITION.lng], DEFAULT_POSITION.zoom);
             }
+
+            // trackingStartTimeをリセット
+            trackingStartTime = null;
+
+            updateStatus('保存完了。IndexedDBを初期化しました');
         };
 
         deleteRequest.onerror = () => {
-            console.error('データベース削除エラー:', deleteRequest.error);
-            updateStatus('データベース削除エラー');
-            alert('データベースの削除に失敗しました');
+            console.error('IndexedDB削除エラー:', deleteRequest.error);
+            alert('IndexedDBの削除に失敗しました');
         };
 
         deleteRequest.onblocked = () => {
-            console.warn('データベース削除がブロックされました。他のタブを閉じてください。');
+            console.warn('IndexedDB削除がブロックされました');
             alert('データベースが使用中です。他のタブを閉じてから再度お試しください。');
         };
     } catch (error) {
-        console.error('リセットエラー:', error);
-        alert('データベースのリセットに失敗しました: ' + error.message);
+        console.error('IndexedDB初期化エラー:', error);
+        alert('IndexedDBの初期化に失敗しました: ' + error.message);
     }
 }
 
@@ -309,6 +421,16 @@ function startTracking() {
 
     isTracking = true;
     trackingData = [];
+
+    // Start時の日時を記録（yyyy-MM-ddThh:mm形式）
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const day = String(now.getDate()).padStart(2, '0');
+    const hours = String(now.getHours()).padStart(2, '0');
+    const minutes = String(now.getMinutes()).padStart(2, '0');
+    trackingStartTime = `${year}-${month}-${day}T${hours}:${minutes}`;
+    console.log('GPS追跡開始時刻:', trackingStartTime);
 
     // GPS監視を開始
     watchId = navigator.geolocation.watchPosition(
@@ -490,7 +612,7 @@ document.addEventListener('DOMContentLoaded', async function() {
     await initMap();
 
     // ボタンイベント
-    document.getElementById('initBtn').addEventListener('click', resetIndexedDB);
+    document.getElementById('saveBtn').addEventListener('click', saveToFirebase);
     document.getElementById('startBtn').addEventListener('click', startTracking);
     document.getElementById('stopBtn').addEventListener('click', stopTracking);
     document.getElementById('photoBtn').addEventListener('click', takePhoto);
