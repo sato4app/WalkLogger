@@ -87,13 +87,13 @@ async function saveLastPosition(lat, lng, zoom) {
         const store = transaction.objectStore(STORE_SETTINGS);
         const positionData = {
             key: 'lastPosition',
-            lat: lat,
-            lng: lng,
+            lat: parseFloat(lat.toFixed(5)),
+            lng: parseFloat(lng.toFixed(5)),
             zoom: zoom,
             timestamp: new Date().toISOString()
         };
         await store.put(positionData);
-        console.log('最終位置を保存しました:', lat, lng);
+        console.log('最終位置を保存しました:', lat.toFixed(5), lng.toFixed(5));
     } catch (error) {
         console.error('位置保存エラー:', error);
     }
@@ -133,6 +133,28 @@ function getLastPosition() {
     });
 }
 
+// データ精度を調整する関数
+function formatPositionData(data) {
+    if (!data) return null;
+
+    const formatted = { ...data };
+
+    // 緯度・経度を小数点以下5位に
+    if (formatted.lat !== undefined) {
+        formatted.lat = parseFloat(formatted.lat.toFixed(5));
+    }
+    if (formatted.lng !== undefined) {
+        formatted.lng = parseFloat(formatted.lng.toFixed(5));
+    }
+
+    // 精度を小数点以下1位に
+    if (formatted.accuracy !== undefined) {
+        formatted.accuracy = parseFloat(formatted.accuracy.toFixed(1));
+    }
+
+    return formatted;
+}
+
 // IndexedDBのデータをFirebaseに保存
 async function saveToFirebase() {
     if (!trackingStartTime) {
@@ -166,11 +188,11 @@ async function saveToFirebase() {
         const firestoreDb = firebase.firestore();
         const projectRef = firestoreDb.collection('projects').doc(projectName);
 
-        // プロジェクトデータを作成
+        // プロジェクトデータを作成（精度調整）
         const projectData = {
             startTime: trackingStartTime,
             createdAt: firebase.firestore.FieldValue.serverTimestamp(),
-            lastPosition: lastPosition,
+            lastPosition: formatPositionData(lastPosition),
             tracksCount: allTracks.length,
             photosCount: allPhotos.length
         };
@@ -179,22 +201,23 @@ async function saveToFirebase() {
         await projectRef.set(projectData);
         console.log('プロジェクトデータを保存しました');
 
-        // トラッキングデータを保存
+        // トラッキングデータを保存（精度調整）
         for (const track of allTracks) {
+            const formattedPoints = track.points.map(point => formatPositionData(point));
             await projectRef.collection('tracks').add({
                 timestamp: track.timestamp,
-                points: track.points,
+                points: formattedPoints,
                 totalPoints: track.totalPoints
             });
         }
         console.log(`${allTracks.length}件のトラッキングデータを保存しました`);
 
-        // 写真データを保存
+        // 写真データを保存（精度調整）
         for (const photo of allPhotos) {
             await projectRef.collection('photos').add({
                 data: photo.data,
                 timestamp: photo.timestamp,
-                location: photo.location
+                location: formatPositionData(photo.location)
             });
         }
         console.log(`${allPhotos.length}件の写真データを保存しました`);
@@ -374,10 +397,10 @@ function updatePosition(position) {
     // トラッキング中の場合、軌跡を記録
     if (isTracking) {
         trackingData.push({
-            lat: lat,
-            lng: lng,
+            lat: parseFloat(lat.toFixed(5)),
+            lng: parseFloat(lng.toFixed(5)),
             timestamp: new Date().toISOString(),
-            accuracy: accuracy
+            accuracy: parseFloat(accuracy.toFixed(1))
         });
 
         // 軌跡を描画
@@ -591,8 +614,8 @@ function updateStatus(message) {
 function updateCoordinates(lat, lng, accuracy) {
     const coordsDiv = document.getElementById('coordinates');
     coordsDiv.innerHTML = `
-        緯度: ${lat.toFixed(6)}<br>
-        経度: ${lng.toFixed(6)}<br>
+        緯度: ${lat.toFixed(5)}<br>
+        経度: ${lng.toFixed(5)}<br>
         精度: ±${accuracy.toFixed(1)}m
     `;
 }
