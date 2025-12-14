@@ -188,39 +188,35 @@ async function saveToFirebase() {
         const firestoreDb = firebase.firestore();
         const projectRef = firestoreDb.collection('projects').doc(projectName);
 
-        // プロジェクトデータを作成（精度調整）
+        // トラッキングデータを配列形式に変換（精度調整）
+        const formattedTracks = allTracks.map(track => ({
+            timestamp: track.timestamp,
+            points: track.points.map(point => formatPositionData(point)),
+            totalPoints: track.totalPoints
+        }));
+
+        // 写真データを配列形式に変換（精度調整）
+        const formattedPhotos = allPhotos.map(photo => ({
+            data: photo.data,
+            timestamp: photo.timestamp,
+            location: formatPositionData(photo.location)
+        }));
+
+        // プロジェクトデータを作成（tracks, photosを配列として含む）
         const projectData = {
             startTime: trackingStartTime,
             createdAt: firebase.firestore.FieldValue.serverTimestamp(),
             lastPosition: formatPositionData(lastPosition),
+            tracks: formattedTracks,
+            photos: formattedPhotos,
             tracksCount: allTracks.length,
             photosCount: allPhotos.length
         };
 
-        // プロジェクトドキュメントを保存
+        // プロジェクトドキュメントを保存（1回の書き込みで完了）
         await projectRef.set(projectData);
         console.log('プロジェクトデータを保存しました');
-
-        // トラッキングデータを保存（精度調整）
-        for (const track of allTracks) {
-            const formattedPoints = track.points.map(point => formatPositionData(point));
-            await projectRef.collection('tracks').add({
-                timestamp: track.timestamp,
-                points: formattedPoints,
-                totalPoints: track.totalPoints
-            });
-        }
-        console.log(`${allTracks.length}件のトラッキングデータを保存しました`);
-
-        // 写真データを保存（精度調整）
-        for (const photo of allPhotos) {
-            await projectRef.collection('photos').add({
-                data: photo.data,
-                timestamp: photo.timestamp,
-                location: formatPositionData(photo.location)
-            });
-        }
-        console.log(`${allPhotos.length}件の写真データを保存しました`);
+        console.log(`トラック: ${allTracks.length}件、写真: ${allPhotos.length}件`);
 
         updateStatus('Firebase保存完了');
         alert(`Firebaseに保存しました\nプロジェクト名: ${projectName}\nトラック: ${allTracks.length}件\n写真: ${allPhotos.length}件`);
