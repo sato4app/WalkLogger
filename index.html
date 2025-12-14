@@ -41,6 +41,17 @@
             </svg>
             <span>Photo</span>
         </button>
+        <button id="listBtn" class="control-btn" title="写真一覧">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <line x1="8" y1="6" x2="21" y2="6"></line>
+                <line x1="8" y1="12" x2="21" y2="12"></line>
+                <line x1="8" y1="18" x2="21" y2="18"></line>
+                <line x1="3" y1="6" x2="3.01" y2="6"></line>
+                <line x1="3" y1="12" x2="3.01" y2="12"></line>
+                <line x1="3" y1="18" x2="3.01" y2="18"></line>
+            </svg>
+            <span>List</span>
+        </button>
     </div>
 
     <!-- ステータス表示 -->
@@ -49,19 +60,24 @@
         <div id="coordinates"></div>
     </div>
 
-    <!-- 写真撮影用の隠しinput -->
-    <input type="file" id="cameraInput" accept="image/*" capture="environment" style="display: none;">
+    <!-- カメラビデオ（撮影時のみ表示） -->
+    <video id="cameraVideo" style="display: none;" autoplay playsinline></video>
+    <canvas id="photoCanvas" style="display: none;"></canvas>
 
-    <!-- 写真プレビューモーダル -->
-    <div id="photoModal" class="modal" style="display: none;">
-        <div class="modal-content">
-            <span class="close">&times;</span>
-            <img id="photoPreview" src="" alt="撮影写真">
-            <div class="modal-buttons">
-                <button id="savePhotoBtn" class="btn-save">保存</button>
-                <button id="cancelPhotoBtn" class="btn-cancel">キャンセル</button>
-            </div>
+    <!-- 写真一覧表示 -->
+    <div id="photoListContainer" style="display: none;">
+        <div id="photoListHeader">
+            <h2>写真一覧</h2>
+            <button id="closeListBtn" class="close-btn" title="閉じる">✕</button>
         </div>
+        <div id="photoGrid"></div>
+    </div>
+
+    <!-- 写真拡大表示 -->
+    <div id="photoViewer" style="display: none;">
+        <button id="closeViewerBtn" class="close-btn" title="閉じる">✕</button>
+        <img id="viewerImage" src="" alt="写真">
+        <div id="photoInfo"></div>
     </div>
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>

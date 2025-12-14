@@ -7,7 +7,6 @@ let trackingPath;
 let watchId = null;
 let isTracking = false;
 let trackingData = [];
-let currentPhotoData = null;
 let trackingStartTime = null; // Start時の日時
 
 // IndexedDB関連
@@ -533,72 +532,101 @@ async function saveTrackingData() {
     }
 }
 
-// 写真撮影
-function takePhoto() {
-    const cameraInput = document.getElementById('cameraInput');
-    cameraInput.click();
-}
-
-// 写真が選択された時の処理
-function handlePhotoSelected(event) {
-    const file = event.target.files[0];
-    if (!file) {
-        return;
-    }
-
-    const reader = new FileReader();
-    reader.onload = function(e) {
-        currentPhotoData = {
-            data: e.target.result,
-            timestamp: new Date().toISOString(),
-            location: currentMarker ? currentMarker.getLatLng() : null
-        };
-
-        // プレビューを表示
-        document.getElementById('photoPreview').src = e.target.result;
-        document.getElementById('photoModal').style.display = 'flex';
-    };
-
-    reader.readAsDataURL(file);
-}
-
-// 写真をIndexedDBに保存
-async function savePhoto() {
-    if (!currentPhotoData) {
-        return;
-    }
-
+// 写真撮影（MediaStream APIを使用）
+async function takePhoto() {
     if (!db) {
         alert('データベースが初期化されていません');
         return;
     }
 
     try {
+        updateStatus('カメラ起動中...');
+
+        // カメラにアクセス
+        const stream = await navigator.mediaDevices.getUserMedia({
+            video: {
+                facingMode: 'environment', // 背面カメラを優先
+                width: { ideal: 1280 },
+                height: { ideal: 720 }
+            }
+        });
+
+        const video = document.getElementById('cameraVideo');
+        const canvas = document.getElementById('photoCanvas');
+
+        video.srcObject = stream;
+
+        // ビデオが準備できるまで待機
+        await new Promise(resolve => {
+            video.onloadedmetadata = () => {
+                resolve();
+            };
+        });
+
+        // 少し待ってから撮影（カメラが安定するまで）
+        await new Promise(resolve => setTimeout(resolve, 500));
+
+        // Canvasに描画
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(video, 0, 0);
+
+        // カメラを停止
+        stream.getTracks().forEach(track => track.stop());
+        video.srcObject = null;
+
+        // Base64形式で取得
+        const photoData = canvas.toDataURL('image/jpeg', 0.7);
+
+        // 現在位置を取得
+        const location = currentMarker ? currentMarker.getLatLng() : null;
+
+        // IndexedDBに即座に保存
+        const photoRecord = {
+            data: photoData,
+            timestamp: new Date().toISOString(),
+            location: location ? {
+                lat: parseFloat(location.lat.toFixed(5)),
+                lng: parseFloat(location.lng.toFixed(5))
+            } : null
+        };
+
         const transaction = db.transaction([STORE_PHOTOS], 'readwrite');
         const store = transaction.objectStore(STORE_PHOTOS);
-        const request = store.add(currentPhotoData);
+        const request = store.add(photoRecord);
 
         request.onsuccess = () => {
             console.log('写真を保存しました。ID:', request.result);
-            alert('写真を保存しました');
-            closePhotoModal();
+            updateStatus('写真を保存しました');
+            // 2秒後にステータスを元に戻す
+            setTimeout(() => {
+                if (isTracking) {
+                    updateStatus(`GPS追跡中 (${trackingData.length}点記録)`);
+                } else {
+                    updateStatus('GPS待機中...');
+                }
+            }, 2000);
         };
 
         request.onerror = () => {
             console.error('写真保存エラー:', request.error);
-            alert('写真の保存に失敗しました');
+            updateStatus('写真保存エラー');
         };
-    } catch (e) {
-        console.error('写真保存エラー:', e);
-        alert('写真の保存に失敗しました: ' + e.message);
-    }
-}
 
-// 写真モーダルを閉じる
-function closePhotoModal() {
-    document.getElementById('photoModal').style.display = 'none';
-    currentPhotoData = null;
-    document.getElementById('cameraInput').value = '';
+    } catch (error) {
+        console.error('カメラエラー:', error);
+
+        if (error.name === 'NotAllowedError') {
+            alert('カメラの使用が許可されていません');
+        } else if (error.name === 'NotFoundError') {
+            alert('カメラが見つかりません');
+        } else {
+            alert('写真撮影に失敗しました: ' + error.message);
+        }
+
+        updateStatus('写真撮影失敗');
+    }
 }
 
 // ステータス表示を更新
@@ -614,6 +642,107 @@ function updateCoordinates(lat, lng, accuracy) {
         経度: ${lng.toFixed(5)}<br>
         精度: ±${accuracy.toFixed(1)}m
     `;
+}
+
+// 写真一覧を表示
+async function showPhotoList() {
+    if (!db) {
+        alert('データベースが初期化されていません');
+        return;
+    }
+
+    const photoListContainer = document.getElementById('photoListContainer');
+    const photoGrid = document.getElementById('photoGrid');
+
+    // 既存のサムネイルをクリア
+    photoGrid.innerHTML = '';
+
+    try {
+        // IndexedDBから全ての写真を取得
+        const transaction = db.transaction([STORE_PHOTOS], 'readonly');
+        const store = transaction.objectStore(STORE_PHOTOS);
+        const request = store.getAll();
+
+        request.onsuccess = () => {
+            const photos = request.result;
+
+            if (photos.length === 0) {
+                photoGrid.innerHTML = '<p style="grid-column: 1/-1; text-align: center; padding: 40px; color: #666;">保存された写真がありません</p>';
+            } else {
+                // 各写真のサムネイルを作成
+                photos.forEach(photo => {
+                    const thumbnail = document.createElement('div');
+                    thumbnail.className = 'photo-thumbnail';
+
+                    const img = document.createElement('img');
+                    img.src = photo.data;
+                    img.alt = '写真';
+
+                    const timestamp = document.createElement('div');
+                    timestamp.className = 'photo-timestamp';
+                    const date = new Date(photo.timestamp);
+                    timestamp.textContent = date.toLocaleString('ja-JP');
+
+                    thumbnail.appendChild(img);
+                    thumbnail.appendChild(timestamp);
+
+                    // サムネイルクリックで拡大表示
+                    thumbnail.addEventListener('click', () => {
+                        showPhotoViewer(photo);
+                    });
+
+                    photoGrid.appendChild(thumbnail);
+                });
+            }
+
+            // 写真一覧を表示
+            photoListContainer.style.display = 'block';
+        };
+
+        request.onerror = () => {
+            console.error('写真取得エラー:', request.error);
+            alert('写真の読み込みに失敗しました');
+        };
+
+    } catch (error) {
+        console.error('写真一覧表示エラー:', error);
+        alert('写真一覧の表示に失敗しました');
+    }
+}
+
+// 写真一覧を閉じる
+function closePhotoList() {
+    document.getElementById('photoListContainer').style.display = 'none';
+}
+
+// 写真を拡大表示
+function showPhotoViewer(photo) {
+    const viewer = document.getElementById('photoViewer');
+    const viewerImage = document.getElementById('viewerImage');
+    const photoInfo = document.getElementById('photoInfo');
+
+    // 画像を設定
+    viewerImage.src = photo.data;
+
+    // 写真情報を設定
+    const date = new Date(photo.timestamp);
+    let infoHTML = `撮影日時: ${date.toLocaleString('ja-JP')}`;
+
+    if (photo.location) {
+        infoHTML += `<br>緯度: ${photo.location.lat.toFixed(5)}<br>経度: ${photo.location.lng.toFixed(5)}`;
+    } else {
+        infoHTML += '<br>位置情報なし';
+    }
+
+    photoInfo.innerHTML = infoHTML;
+
+    // ビューアを表示
+    viewer.style.display = 'flex';
+}
+
+// 写真ビューアを閉じる
+function closePhotoViewer() {
+    document.getElementById('photoViewer').style.display = 'none';
 }
 
 // イベントリスナーの設定
@@ -635,19 +764,11 @@ document.addEventListener('DOMContentLoaded', async function() {
     document.getElementById('startBtn').addEventListener('click', startTracking);
     document.getElementById('stopBtn').addEventListener('click', stopTracking);
     document.getElementById('photoBtn').addEventListener('click', takePhoto);
+    document.getElementById('listBtn').addEventListener('click', showPhotoList);
 
-    // 写真関連イベント
-    document.getElementById('cameraInput').addEventListener('change', handlePhotoSelected);
-    document.getElementById('savePhotoBtn').addEventListener('click', savePhoto);
-    document.getElementById('cancelPhotoBtn').addEventListener('click', closePhotoModal);
-    document.querySelector('.close').addEventListener('click', closePhotoModal);
-
-    // モーダルの外側クリックで閉じる
-    document.getElementById('photoModal').addEventListener('click', function(e) {
-        if (e.target === this) {
-            closePhotoModal();
-        }
-    });
+    // 写真一覧とビューアの閉じるボタン
+    document.getElementById('closeListBtn').addEventListener('click', closePhotoList);
+    document.getElementById('closeViewerBtn').addEventListener('click', closePhotoViewer);
 
     // Service Workerの登録（PWA対応）
     if ('serviceWorker' in navigator) {
