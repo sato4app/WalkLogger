@@ -8,6 +8,7 @@ let watchId = null;
 let isTracking = false;
 let trackingData = [];
 let trackingStartTime = null; // Start時の日時
+let wakeLock = null; // Wake Lock API用（画面スリープ防止）
 
 // IndexedDB関連
 let db = null;
@@ -426,8 +427,44 @@ function handlePositionError(error) {
     console.error('GPS Error:', error);
 }
 
+// Wake Lockを取得（画面スリープ防止）
+async function requestWakeLock() {
+    try {
+        if ('wakeLock' in navigator) {
+            wakeLock = await navigator.wakeLock.request('screen');
+            console.log('Wake Lock取得成功：画面スリープを防止します');
+
+            // Wake Lockが解放された時のイベントハンドラ
+            wakeLock.addEventListener('release', () => {
+                console.log('Wake Lockが解放されました');
+            });
+
+            return true;
+        } else {
+            console.warn('このブラウザはWake Lock APIに対応していません');
+            return false;
+        }
+    } catch (err) {
+        console.error('Wake Lock取得エラー:', err);
+        return false;
+    }
+}
+
+// Wake Lockを解放
+async function releaseWakeLock() {
+    if (wakeLock !== null) {
+        try {
+            await wakeLock.release();
+            wakeLock = null;
+            console.log('Wake Lockを解放しました：画面スリープが有効になります');
+        } catch (err) {
+            console.error('Wake Lock解放エラー:', err);
+        }
+    }
+}
+
 // GPS追跡を開始
-function startTracking() {
+async function startTracking() {
     if (!navigator.geolocation) {
         alert('このブラウザは位置情報に対応していません');
         return;
@@ -450,6 +487,14 @@ function startTracking() {
     trackingStartTime = `${year}-${month}-${day}T${hours}:${minutes}`;
     console.log('GPS追跡開始時刻:', trackingStartTime);
 
+    // Wake Lockを取得（画面スリープ防止）
+    const wakeLockSuccess = await requestWakeLock();
+    if (wakeLockSuccess) {
+        console.log('画面スリープ防止が有効になりました');
+    } else {
+        console.warn('画面スリープ防止を有効にできませんでした（ブラウザ非対応）');
+    }
+
     // GPS監視を開始
     watchId = navigator.geolocation.watchPosition(
         updatePosition,
@@ -468,12 +513,15 @@ function startTracking() {
 }
 
 // GPS追跡を停止
-function stopTracking() {
+async function stopTracking() {
     if (!isTracking) {
         return;
     }
 
     isTracking = false;
+
+    // Wake Lockを解放（画面スリープを有効化）
+    await releaseWakeLock();
 
     // GPS監視を停止
     if (watchId !== null) {
@@ -745,6 +793,14 @@ function closePhotoViewer() {
     document.getElementById('photoViewer').style.display = 'none';
 }
 
+// ページの可視性が変化した時の処理（Wake Lock再取得用）
+async function handleVisibilityChange() {
+    if (document.visibilityState === 'visible' && isTracking) {
+        console.log('ページが再表示されました。Wake Lockを再取得します');
+        await requestWakeLock();
+    }
+}
+
 // イベントリスナーの設定
 document.addEventListener('DOMContentLoaded', async function() {
     // IndexedDBを初期化
@@ -769,6 +825,9 @@ document.addEventListener('DOMContentLoaded', async function() {
     // 写真一覧とビューアの閉じるボタン
     document.getElementById('closeListBtn').addEventListener('click', closePhotoList);
     document.getElementById('closeViewerBtn').addEventListener('click', closePhotoViewer);
+
+    // ページの可視性が変化した時のイベントリスナー（Wake Lock再取得用）
+    document.addEventListener('visibilitychange', handleVisibilityChange);
 
     // Service Workerの登録（PWA対応）
     if ('serviceWorker' in navigator) {
