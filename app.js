@@ -7,8 +7,11 @@ let trackingPath;
 let watchId = null;
 let isTracking = false;
 let trackingData = [];
-let trackingStartTime = null; // Start時の日時
+let trackingStartTime = null; // Start時の日時（yyyy-MM-ddThh:mm形式）
+let trackingStartDate = null; // Start時のDateオブジェクト
+let trackingStopDate = null; // Stop時のDateオブジェクト
 let wakeLock = null; // Wake Lock API用（画面スリープ防止）
+let photosInSession = 0; // セッション中の写真枚数
 
 // IndexedDB関連
 let db = null;
@@ -476,14 +479,15 @@ async function startTracking() {
 
     isTracking = true;
     trackingData = [];
+    photosInSession = 0; // 写真カウントをリセット
 
-    // Start時の日時を記録（yyyy-MM-ddThh:mm形式）
-    const now = new Date();
-    const year = now.getFullYear();
-    const month = String(now.getMonth() + 1).padStart(2, '0');
-    const day = String(now.getDate()).padStart(2, '0');
-    const hours = String(now.getHours()).padStart(2, '0');
-    const minutes = String(now.getMinutes()).padStart(2, '0');
+    // Start時の日時を記録
+    trackingStartDate = new Date();
+    const year = trackingStartDate.getFullYear();
+    const month = String(trackingStartDate.getMonth() + 1).padStart(2, '0');
+    const day = String(trackingStartDate.getDate()).padStart(2, '0');
+    const hours = String(trackingStartDate.getHours()).padStart(2, '0');
+    const minutes = String(trackingStartDate.getMinutes()).padStart(2, '0');
     trackingStartTime = `${year}-${month}-${day}T${hours}:${minutes}`;
     console.log('GPS追跡開始時刻:', trackingStartTime);
 
@@ -519,6 +523,7 @@ async function stopTracking() {
     }
 
     isTracking = false;
+    trackingStopDate = new Date(); // Stop時刻を記録
 
     // Wake Lockを解放（画面スリープを有効化）
     await releaseWakeLock();
@@ -542,6 +547,9 @@ async function stopTracking() {
 
         saveTrackingData();
         updateStatus(`GPS追跡を停止しました (${trackingData.length}点記録)`);
+
+        // 統計情報を表示
+        await showTrackingStats();
     } else {
         updateStatus('GPS追跡を停止しました');
     }
@@ -646,6 +654,7 @@ async function takePhoto() {
 
         request.onsuccess = () => {
             console.log('写真を保存しました。ID:', request.result);
+            photosInSession++; // セッション中の写真枚数をカウント
             updateStatus('写真を保存しました');
             // 2秒後にステータスを元に戻す
             setTimeout(() => {
@@ -793,6 +802,116 @@ function closePhotoViewer() {
     document.getElementById('photoViewer').style.display = 'none';
 }
 
+// 記録統計情報を表示
+async function showTrackingStats() {
+    if (!trackingStartDate || !trackingStopDate) {
+        console.error('記録時刻情報が不足しています');
+        return;
+    }
+
+    // 記録時間を計算（ミリ秒 → 分:秒）
+    const durationMs = trackingStopDate - trackingStartDate;
+    const durationSeconds = Math.floor(durationMs / 1000);
+    const minutes = Math.floor(durationSeconds / 60);
+    const seconds = durationSeconds % 60;
+    const durationStr = `${minutes}分${seconds}秒`;
+
+    // 開始・終了時刻をフォーマット
+    const startTimeStr = `${trackingStartDate.getFullYear()}/${String(trackingStartDate.getMonth() + 1).padStart(2, '0')}/${String(trackingStartDate.getDate()).padStart(2, '0')} ${String(trackingStartDate.getHours()).padStart(2, '0')}:${String(trackingStartDate.getMinutes()).padStart(2, '0')}:${String(trackingStartDate.getSeconds()).padStart(2, '0')}`;
+    const stopTimeStr = `${String(trackingStopDate.getHours()).padStart(2, '0')}:${String(trackingStopDate.getMinutes()).padStart(2, '0')}:${String(trackingStopDate.getSeconds()).padStart(2, '0')}`;
+
+    // GPS記録地点数とサイズを計算
+    const gpsPointsCount = trackingData.length;
+    const gpsDataStr = JSON.stringify(trackingData);
+    const gpsDataSizeBytes = new Blob([gpsDataStr]).size;
+    const gpsDataSizeKB = (gpsDataSizeBytes / 1024).toFixed(2);
+
+    // 写真データを取得してサイズと解像度を計算
+    let photosTotalSize = 0;
+    let photosResolution = '-';
+
+    if (photosInSession > 0) {
+        try {
+            const allPhotos = await getAllPhotos();
+            // 最新の写真から今回のセッション分を取得
+            const sessionPhotos = allPhotos.slice(-photosInSession);
+
+            sessionPhotos.forEach(photo => {
+                photosTotalSize += new Blob([photo.data]).size;
+            });
+
+            // 最後の写真から解像度を取得
+            if (sessionPhotos.length > 0) {
+                const lastPhoto = sessionPhotos[sessionPhotos.length - 1];
+                // Base64データから画像サイズを取得
+                const img = new Image();
+                await new Promise((resolve) => {
+                    img.onload = () => {
+                        photosResolution = `${img.width} × ${img.height}`;
+                        resolve();
+                    };
+                    img.src = lastPhoto.data;
+                });
+            }
+        } catch (error) {
+            console.error('写真データ取得エラー:', error);
+        }
+    }
+
+    const photosSizeMB = (photosTotalSize / (1024 * 1024)).toFixed(2);
+
+    // 統計情報のHTMLを生成
+    const statsHTML = `
+        <div class="stat-section">
+            <div class="stat-row">
+                <span class="stat-label">記録開始日時:</span>
+                <span class="stat-value">${startTimeStr}</span>
+            </div>
+            <div class="stat-row">
+                <span class="stat-label">終了時刻:</span>
+                <span class="stat-value">${stopTimeStr}</span>
+            </div>
+            <div class="stat-row">
+                <span class="stat-label">記録時間:</span>
+                <span class="stat-value">${durationStr}</span>
+            </div>
+        </div>
+        <div class="stat-section">
+            <div class="stat-row">
+                <span class="stat-label">GPS記録地点数:</span>
+                <span class="stat-value">${gpsPointsCount}点</span>
+            </div>
+            <div class="stat-row">
+                <span class="stat-label">GPSデータサイズ:</span>
+                <span class="stat-value">${gpsDataSizeKB} KB</span>
+            </div>
+        </div>
+        <div class="stat-section">
+            <div class="stat-row">
+                <span class="stat-label">写真撮影枚数:</span>
+                <span class="stat-value">${photosInSession}枚</span>
+            </div>
+            <div class="stat-row">
+                <span class="stat-label">写真データサイズ:</span>
+                <span class="stat-value">${photosSizeMB} MB</span>
+            </div>
+            <div class="stat-row">
+                <span class="stat-label">写真解像度:</span>
+                <span class="stat-value">${photosResolution}</span>
+            </div>
+        </div>
+    `;
+
+    // ダイアログに統計情報を表示
+    document.getElementById('statsBody').innerHTML = statsHTML;
+    document.getElementById('statsDialog').style.display = 'flex';
+}
+
+// 統計ダイアログを閉じる
+function closeStatsDialog() {
+    document.getElementById('statsDialog').style.display = 'none';
+}
+
 // ページの可視性が変化した時の処理（Wake Lock再取得用）
 async function handleVisibilityChange() {
     if (document.visibilityState === 'visible' && isTracking) {
@@ -825,6 +944,9 @@ document.addEventListener('DOMContentLoaded', async function() {
     // 写真一覧とビューアの閉じるボタン
     document.getElementById('closeListBtn').addEventListener('click', closePhotoList);
     document.getElementById('closeViewerBtn').addEventListener('click', closePhotoViewer);
+
+    // 統計ダイアログのOKボタン
+    document.getElementById('statsOkBtn').addEventListener('click', closeStatsDialog);
 
     // ページの可視性が変化した時のイベントリスナー（Wake Lock再取得用）
     document.addEventListener('visibilitychange', handleVisibilityChange);
