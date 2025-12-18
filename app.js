@@ -595,7 +595,12 @@ async function takePhoto() {
         return;
     }
 
+    const photoBtn = document.getElementById('photoBtn');
+
     try {
+        // ボタンを無効化して視覚的フィードバックを追加
+        photoBtn.disabled = true;
+        photoBtn.style.opacity = '0.5';
         updateStatus('カメラ起動中...');
 
         // カメラにアクセス
@@ -683,6 +688,10 @@ async function takePhoto() {
         }
 
         updateStatus('写真撮影失敗');
+    } finally {
+        // 必ずボタンを元に戻す
+        photoBtn.disabled = false;
+        photoBtn.style.opacity = '';
     }
 }
 
