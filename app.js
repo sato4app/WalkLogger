@@ -12,6 +12,7 @@ let trackingStartDate = null; // Start時のDateオブジェクト
 let trackingStopDate = null; // Stop時のDateオブジェクト
 let wakeLock = null; // Wake Lock API用（画面スリープ防止）
 let photosInSession = 0; // セッション中の写真枚数
+let lastRecordedPoint = null; // 最後に記録した位置情報（条件判定用）
 
 // IndexedDB関連
 let db = null;
@@ -376,11 +377,28 @@ async function initMap() {
     updateStatus('地図を初期化しました');
 }
 
+// 2地点間の距離を計算（メートル）- Haversine公式
+function calculateDistance(lat1, lng1, lat2, lng2) {
+    const R = 6371000; // 地球の半径（メートル）
+    const φ1 = lat1 * Math.PI / 180;
+    const φ2 = lat2 * Math.PI / 180;
+    const Δφ = (lat2 - lat1) * Math.PI / 180;
+    const Δλ = (lng2 - lng1) * Math.PI / 180;
+
+    const a = Math.sin(Δφ / 2) * Math.sin(Δφ / 2) +
+              Math.cos(φ1) * Math.cos(φ2) *
+              Math.sin(Δλ / 2) * Math.sin(Δλ / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+
+    return R * c; // メートル単位で距離を返す
+}
+
 // GPS位置の更新
 function updatePosition(position) {
     const lat = position.coords.latitude;
     const lng = position.coords.longitude;
     const accuracy = position.coords.accuracy;
+    const currentTime = Date.now();
 
     // マーカーを更新または作成
     if (currentMarker) {
@@ -393,20 +411,52 @@ function updatePosition(position) {
     // 座標表示を更新
     updateCoordinates(lat, lng, accuracy);
 
-    // トラッキング中の場合、軌跡を記録
+    // トラッキング中の場合、条件を満たした時のみ記録
     if (isTracking) {
-        trackingData.push({
-            lat: parseFloat(lat.toFixed(5)),
-            lng: parseFloat(lng.toFixed(5)),
-            timestamp: new Date().toISOString(),
-            accuracy: parseFloat(accuracy.toFixed(1))
-        });
+        let shouldRecord = false;
 
-        // 軌跡を描画
-        const latlngs = trackingData.map(point => [point.lat, point.lng]);
-        trackingPath.setLatLngs(latlngs);
+        // 初回は必ず記録
+        if (lastRecordedPoint === null) {
+            shouldRecord = true;
+        } else {
+            // 前回記録からの経過時間（秒）
+            const elapsedSeconds = (currentTime - lastRecordedPoint.time) / 1000;
 
-        updateStatus(`GPS追跡中 (${trackingData.length}点記録)`);
+            // 前回記録からの移動距離（メートル）
+            const distance = calculateDistance(
+                lastRecordedPoint.lat, lastRecordedPoint.lng,
+                lat, lng
+            );
+
+            // 60秒以上経過、または20m以上移動した場合に記録
+            if (elapsedSeconds >= 60 || distance >= 20) {
+                shouldRecord = true;
+            }
+        }
+
+        if (shouldRecord) {
+            const recordedPoint = {
+                lat: parseFloat(lat.toFixed(5)),
+                lng: parseFloat(lng.toFixed(5)),
+                timestamp: new Date().toISOString(),
+                accuracy: parseFloat(accuracy.toFixed(1))
+            };
+
+            trackingData.push(recordedPoint);
+
+            // 最後に記録した位置情報を更新
+            lastRecordedPoint = {
+                lat: lat,
+                lng: lng,
+                time: currentTime
+            };
+
+            // 軌跡を描画
+            const latlngs = trackingData.map(point => [point.lat, point.lng]);
+            trackingPath.setLatLngs(latlngs);
+
+            updateStatus(`GPS追跡中 (${trackingData.length}点記録)`);
+        }
     }
 }
 
@@ -480,6 +530,7 @@ async function startTracking() {
     isTracking = true;
     trackingData = [];
     photosInSession = 0; // 写真カウントをリセット
+    lastRecordedPoint = null; // 最後の記録地点をリセット
 
     // Start時の日時を記録
     trackingStartDate = new Date();
@@ -833,7 +884,18 @@ async function showTrackingStats() {
     const gpsPointsCount = trackingData.length;
     const gpsDataStr = JSON.stringify(trackingData);
     const gpsDataSizeBytes = new Blob([gpsDataStr]).size;
-    const gpsDataSizeKB = (gpsDataSizeBytes / 1024).toFixed(2);
+
+    // GPSデータサイズを適切な単位で表示（4桁精度）
+    let gpsDataSize;
+    const gpsDataSizeMB = gpsDataSizeBytes / (1024 * 1024);
+    if (gpsDataSizeMB > 10) {
+        // 10MB超: MB単位で表示
+        gpsDataSize = gpsDataSizeMB.toPrecision(4) + ' MB';
+    } else {
+        // 10MB以下: KB単位で表示
+        const gpsDataSizeKB = gpsDataSizeBytes / 1024;
+        gpsDataSize = gpsDataSizeKB.toPrecision(4) + ' KB';
+    }
 
     // 写真データを取得してサイズと解像度を計算
     let photosTotalSize = 0;
@@ -867,7 +929,17 @@ async function showTrackingStats() {
         }
     }
 
-    const photosSizeMB = (photosTotalSize / (1024 * 1024)).toFixed(2);
+    // 写真データサイズを適切な単位で表示（4桁精度）
+    let photosDataSize;
+    const photosSizeMB = photosTotalSize / (1024 * 1024);
+    if (photosSizeMB > 10) {
+        // 10MB超: MB単位で表示
+        photosDataSize = photosSizeMB.toPrecision(4) + ' MB';
+    } else {
+        // 10MB以下: KB単位で表示
+        const photosSizeKB = photosTotalSize / 1024;
+        photosDataSize = photosSizeKB.toPrecision(4) + ' KB';
+    }
 
     // 統計情報のHTMLを生成
     const statsHTML = `
@@ -892,7 +964,7 @@ async function showTrackingStats() {
             </div>
             <div class="stat-row">
                 <span class="stat-label">GPSデータサイズ:</span>
-                <span class="stat-value">${gpsDataSizeKB} KB</span>
+                <span class="stat-value">${gpsDataSize}</span>
             </div>
         </div>
         <div class="stat-section">
@@ -902,7 +974,7 @@ async function showTrackingStats() {
             </div>
             <div class="stat-row">
                 <span class="stat-label">写真データサイズ:</span>
-                <span class="stat-value">${photosSizeMB} MB</span>
+                <span class="stat-value">${photosDataSize}</span>
             </div>
             <div class="stat-row">
                 <span class="stat-label">写真解像度:</span>
