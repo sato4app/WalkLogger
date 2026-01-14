@@ -9,7 +9,7 @@ const firebaseConfig = {
   apiKey: "AIzaSyC5amCLJY0IPT_wNr9RWM8kOjjh1QRJO7o",
   authDomain: "walklog-sato.firebaseapp.com",
   projectId: "walklog-sato",
-  storageBucket: "walklog-sato.firebasestorage.app",
+  storageBucket: "walklog-sato-storage",
   messagingSenderId: "145596418326",
   appId: "1:145596418326:web:967a9df31c52949c7ca837"
 };

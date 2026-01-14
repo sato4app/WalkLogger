@@ -159,6 +159,17 @@ function formatPositionData(data) {
     return formatted;
 }
 
+// Base64をBlobに変換
+function base64ToBlob(base64, contentType = 'image/jpeg') {
+    const byteCharacters = atob(base64.split(',')[1]);
+    const byteNumbers = new Array(byteCharacters.length);
+    for (let i = 0; i < byteCharacters.length; i++) {
+        byteNumbers[i] = byteCharacters.charCodeAt(i);
+    }
+    const byteArray = new Uint8Array(byteNumbers);
+    return new Blob([byteArray], { type: contentType });
+}
+
 // IndexedDBのデータをFirebaseに保存
 async function saveToFirebase() {
     if (!trackingStartTime) {
@@ -188,7 +199,8 @@ async function saveToFirebase() {
         const projectName = trackingStartTime;
         console.log('Firebaseプロジェクト名:', projectName);
 
-        // Firestoreに保存
+        // Firebase StorageとFirestoreの参照を取得
+        const storage = firebase.storage();
         const firestoreDb = firebase.firestore();
         const projectRef = firestoreDb.collection('projects').doc(projectName);
 
@@ -199,12 +211,58 @@ async function saveToFirebase() {
             totalPoints: track.totalPoints
         }));
 
-        // 写真データを配列形式に変換（精度調整）
-        const formattedPhotos = allPhotos.map(photo => ({
-            data: photo.data,
-            timestamp: photo.timestamp,
-            location: formatPositionData(photo.location)
-        }));
+        // 写真をStorageにアップロードしてダウンロードURLを取得
+        updateStatus(`写真をアップロード中... (0/${allPhotos.length})`);
+        const formattedPhotos = [];
+
+        for (let i = 0; i < allPhotos.length; i++) {
+            const photo = allPhotos[i];
+
+            try {
+                // Base64をBlobに変換
+                const blob = base64ToBlob(photo.data);
+
+                // Storage パス: projects/{projectName}/photos/{timestamp}.jpg
+                const timestamp = new Date(photo.timestamp).getTime();
+                const photoPath = `projects/${projectName}/photos/${timestamp}.jpg`;
+                const storageRef = storage.ref(photoPath);
+
+                // アップロード
+                await storageRef.put(blob, {
+                    contentType: 'image/jpeg',
+                    customMetadata: {
+                        timestamp: photo.timestamp,
+                        lat: photo.location?.lat?.toString() || '',
+                        lng: photo.location?.lng?.toString() || ''
+                    }
+                });
+
+                // ダウンロードURLを取得
+                const downloadURL = await storageRef.getDownloadURL();
+
+                // Firestoreに保存するデータ
+                formattedPhotos.push({
+                    url: downloadURL,
+                    storagePath: photoPath,
+                    timestamp: photo.timestamp,
+                    location: formatPositionData(photo.location)
+                });
+
+                console.log(`写真 ${i + 1}/${allPhotos.length} をアップロードしました`);
+                updateStatus(`写真をアップロード中... (${i + 1}/${allPhotos.length})`);
+
+            } catch (uploadError) {
+                console.error(`写真 ${i + 1} のアップロードエラー:`, uploadError);
+                // エラーがあっても続行
+                formattedPhotos.push({
+                    error: uploadError.message,
+                    timestamp: photo.timestamp,
+                    location: formatPositionData(photo.location)
+                });
+            }
+        }
+
+        updateStatus('Firestoreに保存中...');
 
         // プロジェクトデータを作成（tracks, photosを配列として含む）
         const projectData = {
