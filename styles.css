@@ -39,6 +39,21 @@ body {
     top: -30px;
 }
 
+/* データ管理パネル */
+#dataPanel {
+    position: fixed;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    gap: 15px;
+    z-index: 1000;
+    background: rgba(255, 255, 255, 0.95);
+    padding: 15px 20px;
+    border-radius: 50px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+
 /* コントロールパネル */
 #controls {
     position: fixed;
@@ -129,13 +144,64 @@ body {
     color: white;
 }
 
-#listBtn {
+#dataBtn {
+    border-color: #9C27B0;
+    color: #9C27B0;
+}
+
+#dataBtn:hover:not(:disabled) {
+    background: #9C27B0;
+    color: white;
+}
+
+/* データ管理パネルのボタン */
+#dataListBtn {
     border-color: #FF9800;
     color: #FF9800;
 }
 
-#listBtn:hover:not(:disabled) {
+#dataListBtn:hover:not(:disabled) {
     background: #FF9800;
+    color: white;
+}
+
+#dataSizeBtn {
+    border-color: #00BCD4;
+    color: #00BCD4;
+}
+
+#dataSizeBtn:hover:not(:disabled) {
+    background: #00BCD4;
+    color: white;
+}
+
+#dataSaveBtn {
+    border-color: #4CAF50;
+    color: #4CAF50;
+}
+
+#dataSaveBtn:hover:not(:disabled) {
+    background: #4CAF50;
+    color: white;
+}
+
+#dataClearBtn {
+    border-color: #f44336;
+    color: #f44336;
+}
+
+#dataClearBtn:hover:not(:disabled) {
+    background: #f44336;
+    color: white;
+}
+
+#dataReturnBtn {
+    border-color: #607D8B;
+    color: #607D8B;
+}
+
+#dataReturnBtn:hover:not(:disabled) {
+    background: #607D8B;
     color: white;
 }
 

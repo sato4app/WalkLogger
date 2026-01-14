@@ -166,7 +166,7 @@ async function saveToFirebase() {
         return;
     }
 
-    if (!confirm('IndexedDBのデータをFirebaseに保存しますか？\n保存後、IndexedDBは初期化されます。')) {
+    if (!confirm('IndexedDBのデータをFirebaseに保存しますか？')) {
         return;
     }
 
@@ -225,9 +225,6 @@ async function saveToFirebase() {
         updateStatus('Firebase保存完了');
         alert(`Firebaseに保存しました\nプロジェクト名: ${projectName}\nトラック: ${allTracks.length}件\n写真: ${allPhotos.length}件`);
 
-        // IndexedDBを初期化
-        await resetIndexedDBAfterSave(lastPosition);
-
     } catch (error) {
         console.error('Firebase保存エラー:', error);
         updateStatus('Firebase保存エラー');
@@ -285,6 +282,64 @@ function getAllPhotos() {
             reject(error);
         }
     });
+}
+
+// IndexedDB初期化（Clear機能）
+async function clearIndexedDB() {
+    if (!confirm('IndexedDBを初期化しますか？\n保存されているすべてのデータが削除されます。')) {
+        return;
+    }
+
+    try {
+        // 最後の記録地点を取得（復元用）
+        const lastPosition = await getLastPosition();
+
+        // データベースを閉じる
+        if (db) {
+            db.close();
+            db = null;
+        }
+
+        // データベースを削除
+        const deleteRequest = indexedDB.deleteDatabase(DB_NAME);
+
+        deleteRequest.onsuccess = async () => {
+            console.log('IndexedDBを削除しました');
+            updateStatus('IndexedDBを初期化しました');
+
+            // 再初期化
+            await initIndexedDB();
+
+            // 最後の記録地点を復元
+            if (lastPosition) {
+                await saveLastPosition(lastPosition.lat, lastPosition.lng, lastPosition.zoom);
+                console.log('最後の記録地点を復元しました');
+            } else {
+                await saveLastPosition(DEFAULT_POSITION.lat, DEFAULT_POSITION.lng, DEFAULT_POSITION.zoom);
+                console.log('デフォルト位置を設定しました');
+            }
+
+            // trackingStartTimeをリセット
+            trackingStartTime = null;
+            trackingData = [];
+
+            alert('IndexedDBを初期化しました');
+            updateStatus('IndexedDB初期化完了');
+        };
+
+        deleteRequest.onerror = () => {
+            console.error('IndexedDB削除エラー:', deleteRequest.error);
+            alert('IndexedDBの削除に失敗しました');
+        };
+
+        deleteRequest.onblocked = () => {
+            console.warn('IndexedDB削除がブロックされました');
+            alert('データベースが使用中です。他のタブを閉じてから再度お試しください。');
+        };
+    } catch (error) {
+        console.error('IndexedDB初期化エラー:', error);
+        alert('IndexedDBの初期化に失敗しました: ' + error.message);
+    }
 }
 
 // Firebase保存後のIndexedDB初期化
@@ -598,9 +653,6 @@ async function stopTracking() {
 
         saveTrackingData();
         updateStatus(`GPS追跡を停止しました (${trackingData.length}点記録)`);
-
-        // 統計情報を表示
-        await showTrackingStats();
     } else {
         updateStatus('GPS追跡を停止しました');
     }
@@ -862,6 +914,109 @@ function closePhotoViewer() {
     document.getElementById('photoViewer').style.display = 'none';
 }
 
+// データサイズ情報を表示（Sizeボタン用）
+async function showDataSize() {
+    try {
+        updateStatus('データサイズを計算中...');
+
+        // IndexedDBから全データを取得
+        const allTracks = await getAllTracks();
+        const allPhotos = await getAllPhotos();
+
+        // GPS記録地点数とサイズを計算
+        let gpsPointsCount = 0;
+        let gpsDataSizeBytes = 0;
+
+        allTracks.forEach(track => {
+            gpsPointsCount += track.totalPoints;
+            const trackStr = JSON.stringify(track);
+            gpsDataSizeBytes += new Blob([trackStr]).size;
+        });
+
+        // GPSデータサイズを適切な単位で表示（4桁精度）
+        let gpsDataSize;
+        const gpsDataSizeMB = gpsDataSizeBytes / (1024 * 1024);
+        if (gpsDataSizeMB > 10) {
+            gpsDataSize = gpsDataSizeMB.toPrecision(4) + ' MB';
+        } else {
+            const gpsDataSizeKB = gpsDataSizeBytes / 1024;
+            gpsDataSize = gpsDataSizeKB.toPrecision(4) + ' KB';
+        }
+
+        // 写真データのサイズと解像度を計算
+        let photosTotalSize = 0;
+        let photosResolution = '-';
+
+        if (allPhotos.length > 0) {
+            allPhotos.forEach(photo => {
+                photosTotalSize += new Blob([photo.data]).size;
+            });
+
+            // 最後の写真から解像度を取得
+            const lastPhoto = allPhotos[allPhotos.length - 1];
+            const img = new Image();
+            await new Promise((resolve) => {
+                img.onload = () => {
+                    photosResolution = `${img.width} × ${img.height}`;
+                    resolve();
+                };
+                img.onerror = () => {
+                    resolve();
+                };
+                img.src = lastPhoto.data;
+            });
+        }
+
+        // 写真データサイズを適切な単位で表示（4桁精度）
+        let photosDataSize;
+        const photosSizeMB = photosTotalSize / (1024 * 1024);
+        if (photosSizeMB > 10) {
+            photosDataSize = photosSizeMB.toPrecision(4) + ' MB';
+        } else {
+            const photosSizeKB = photosTotalSize / 1024;
+            photosDataSize = photosSizeKB.toPrecision(4) + ' KB';
+        }
+
+        // データサイズ情報のHTMLを生成
+        const statsHTML = `
+            <div class="stat-section">
+                <div class="stat-row">
+                    <span class="stat-label">GPS記録地点数:</span>
+                    <span class="stat-value">${gpsPointsCount}点</span>
+                </div>
+                <div class="stat-row">
+                    <span class="stat-label">GPSデータサイズ:</span>
+                    <span class="stat-value">${gpsDataSize}</span>
+                </div>
+            </div>
+            <div class="stat-section">
+                <div class="stat-row">
+                    <span class="stat-label">写真撮影枚数:</span>
+                    <span class="stat-value">${allPhotos.length}枚</span>
+                </div>
+                <div class="stat-row">
+                    <span class="stat-label">写真データサイズ:</span>
+                    <span class="stat-value">${photosDataSize}</span>
+                </div>
+                <div class="stat-row">
+                    <span class="stat-label">写真解像度:</span>
+                    <span class="stat-value">${photosResolution}</span>
+                </div>
+            </div>
+        `;
+
+        // ダイアログに表示
+        document.getElementById('statsBody').innerHTML = statsHTML;
+        document.getElementById('statsDialog').style.display = 'flex';
+
+        updateStatus('データサイズ表示完了');
+    } catch (error) {
+        console.error('データサイズ取得エラー:', error);
+        alert('データサイズの取得に失敗しました: ' + error.message);
+        updateStatus('データサイズ取得エラー');
+    }
+}
+
 // 記録統計情報を表示
 async function showTrackingStats() {
     if (!trackingStartDate || !trackingStopDate) {
@@ -1015,12 +1170,38 @@ document.addEventListener('DOMContentLoaded', async function() {
     // 地図を初期化（保存された位置または箕面大滝）
     await initMap();
 
-    // ボタンイベント
-    document.getElementById('saveBtn').addEventListener('click', saveToFirebase);
+    // メインコントロールのボタンイベント
     document.getElementById('startBtn').addEventListener('click', startTracking);
     document.getElementById('stopBtn').addEventListener('click', stopTracking);
     document.getElementById('photoBtn').addEventListener('click', takePhoto);
-    document.getElementById('listBtn').addEventListener('click', showPhotoList);
+
+    // Dataボタンのクリックイベント（パネル表示切り替え）
+    document.getElementById('dataBtn').addEventListener('click', function() {
+        const dataPanel = document.getElementById('dataPanel');
+        const controls = document.getElementById('controls');
+
+        if (dataPanel.style.display === 'none' || dataPanel.style.display === '') {
+            // dataPanelを表示し、controlsを隠す
+            dataPanel.style.display = 'flex';
+            controls.style.display = 'none';
+        } else {
+            // dataPanelを隠し、controlsを表示
+            dataPanel.style.display = 'none';
+            controls.style.display = 'flex';
+        }
+    });
+
+    // データ管理パネルのボタンイベント
+    document.getElementById('dataListBtn').addEventListener('click', showPhotoList);
+    document.getElementById('dataSizeBtn').addEventListener('click', showDataSize);
+    document.getElementById('dataSaveBtn').addEventListener('click', saveToFirebase);
+    document.getElementById('dataClearBtn').addEventListener('click', clearIndexedDB);
+
+    // Returnボタンのクリックイベント（メインコントロールに戻る）
+    document.getElementById('dataReturnBtn').addEventListener('click', function() {
+        document.getElementById('dataPanel').style.display = 'none';
+        document.getElementById('controls').style.display = 'flex';
+    });
 
     // 写真一覧とビューアの閉じるボタン
     document.getElementById('closeListBtn').addEventListener('click', closePhotoList);
