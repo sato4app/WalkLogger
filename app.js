@@ -13,6 +13,7 @@ let trackingStopDate = null; // Stop時のDateオブジェクト
 let wakeLock = null; // Wake Lock API用（画面スリープ防止）
 let photosInSession = 0; // セッション中の写真枚数
 let lastRecordedPoint = null; // 最後に記録した位置情報（条件判定用）
+let currentHeading = 0; // 現在の方角（度）
 
 // IndexedDB関連
 let db = null;
@@ -29,13 +30,19 @@ const DEFAULT_POSITION = {
     zoom: 13
 };
 
-// 緑の三角形マーカーアイコンを作成
-const triangleIcon = L.divIcon({
-    className: 'triangle-marker',
-    html: '<div class="triangle"></div>',
-    iconSize: [30, 30],
-    iconAnchor: [15, 15]
-});
+// 矢印型マーカーアイコンを作成（方角に応じて回転）
+function createArrowIcon(heading = 0) {
+    return L.divIcon({
+        className: 'arrow-marker',
+        html: `<div class="arrow" style="transform: rotate(${heading}deg)">
+                <svg width="30" height="30" viewBox="0 0 30 30">
+                    <path d="M15 5 L25 25 L15 20 L5 25 Z" fill="#4CAF50" stroke="#2E7D32" stroke-width="2"/>
+                </svg>
+            </div>`,
+        iconSize: [30, 30],
+        iconAnchor: [15, 15]
+    });
+}
 
 // IndexedDBの初期化
 function initIndexedDB() {
@@ -591,9 +598,9 @@ async function initMap() {
         minZoom: 5
     }).addTo(map);
 
-    // トラッキングパス（軌跡）用のポリライン
+    // トラッキングパス（軌跡）用のポリライン（緑色）
     trackingPath = L.polyline([], {
-        color: '#2196F3',
+        color: '#4CAF50',
         weight: 4,
         opacity: 0.7
     }).addTo(map);
@@ -624,11 +631,18 @@ function updatePosition(position) {
     const accuracy = position.coords.accuracy;
     const currentTime = Date.now();
 
+    // 方角を取得（heading）※watchPositionで自動取得されることがある
+    if (position.coords.heading !== null && position.coords.heading !== undefined) {
+        currentHeading = position.coords.heading;
+    }
+
     // マーカーを更新または作成
+    const arrowIcon = createArrowIcon(currentHeading);
     if (currentMarker) {
         currentMarker.setLatLng([lat, lng]);
+        currentMarker.setIcon(arrowIcon);
     } else {
-        currentMarker = L.marker([lat, lng], { icon: triangleIcon }).addTo(map);
+        currentMarker = L.marker([lat, lng], { icon: arrowIcon }).addTo(map);
         map.setView([lat, lng], 15);
     }
 
@@ -800,6 +814,21 @@ async function startTracking() {
         console.log('画面スリープ防止が有効になりました');
     } else {
         console.warn('画面スリープ防止を有効にできませんでした（ブラウザ非対応）');
+    }
+
+    // iOS 13以降の場合、DeviceOrientation許可を要求
+    if (typeof DeviceOrientationEvent.requestPermission === 'function') {
+        try {
+            const permission = await DeviceOrientationEvent.requestPermission();
+            if (permission === 'granted') {
+                window.addEventListener('deviceorientation', handleDeviceOrientation, true);
+                console.log('DeviceOrientation許可が付与されました');
+            } else {
+                console.warn('DeviceOrientation許可が拒否されました');
+            }
+        } catch (error) {
+            console.error('DeviceOrientation許可要求エラー:', error);
+        }
     }
 
     // GPS監視を開始
@@ -1225,10 +1254,12 @@ async function loadDocument(doc) {
 
         // 最終位置にマーカーを表示
         if (data.lastPosition) {
+            const arrowIcon = createArrowIcon(currentHeading);
             if (currentMarker) {
                 currentMarker.setLatLng([data.lastPosition.lat, data.lastPosition.lng]);
+                currentMarker.setIcon(arrowIcon);
             } else {
-                currentMarker = L.marker([data.lastPosition.lat, data.lastPosition.lng], { icon: triangleIcon }).addTo(map);
+                currentMarker = L.marker([data.lastPosition.lat, data.lastPosition.lng], { icon: arrowIcon }).addTo(map);
             }
         }
 
@@ -1484,6 +1515,31 @@ async function handleVisibilityChange() {
     }
 }
 
+// デバイスの方角を取得（DeviceOrientation API）
+function handleDeviceOrientation(event) {
+    // alphaは北を0度とした方角（0-360度）
+    // webkitCompassHeadingはiOS用
+    let heading = null;
+
+    if (event.webkitCompassHeading !== undefined) {
+        // iOS Safari
+        heading = event.webkitCompassHeading;
+    } else if (event.alpha !== null) {
+        // Android Chrome等
+        // alphaは0度が北、90度が東、180度が南、270度が西
+        heading = 360 - event.alpha;
+    }
+
+    if (heading !== null) {
+        currentHeading = heading;
+        // マーカーアイコンを更新
+        if (currentMarker) {
+            const arrowIcon = createArrowIcon(currentHeading);
+            currentMarker.setIcon(arrowIcon);
+        }
+    }
+}
+
 // イベントリスナーの設定
 document.addEventListener('DOMContentLoaded', async function() {
     // IndexedDBを初期化
@@ -1558,6 +1614,20 @@ document.addEventListener('DOMContentLoaded', async function() {
 
     // ページの可視性が変化した時のイベントリスナー（Wake Lock再取得用）
     document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    // デバイスの方角センサーを有効化
+    if (window.DeviceOrientationEvent) {
+        // iOS 13以降は許可が必要
+        if (typeof DeviceOrientationEvent.requestPermission === 'function') {
+            // iOSの場合、ユーザーアクションから呼び出す必要があるため、
+            // Startボタンクリック時に許可を要求する（startTracking内で処理）
+            console.log('iOS: DeviceOrientation許可が必要です');
+        } else {
+            // Android等
+            window.addEventListener('deviceorientation', handleDeviceOrientation, true);
+            console.log('DeviceOrientation イベントリスナーを追加しました');
+        }
+    }
 
     // Service Workerの登録（PWA対応）
     if ('serviceWorker' in navigator) {
