@@ -4,6 +4,7 @@
 let map;
 let currentMarker;
 let trackingPath;
+let photoMarkers = []; // 写真マーカーの配列
 let watchId = null;
 let isTracking = false;
 let trackingData = [];
@@ -41,6 +42,16 @@ function createArrowIcon(heading = 0) {
             </div>`,
         iconSize: [30, 30],
         iconAnchor: [15, 15]
+    });
+}
+
+// 写真マーカーアイコンを作成（オレンジ色の丸）
+function createPhotoIcon() {
+    return L.divIcon({
+        className: 'photo-marker',
+        html: `<div class="photo-marker-circle"></div>`,
+        iconSize: [12, 12],
+        iconAnchor: [6, 6]
     });
 }
 
@@ -608,6 +619,57 @@ async function initMap() {
     updateStatus('地図を初期化しました');
 }
 
+// 写真マーカーを地図上に表示
+async function displayPhotoMarkers() {
+    try {
+        // 既存の写真マーカーをクリア
+        photoMarkers.forEach(marker => map.removeLayer(marker));
+        photoMarkers = [];
+
+        // IndexedDBから全写真データを取得
+        const allPhotos = await getAllPhotos();
+
+        // 位置情報がある写真のみマーカーを表示
+        allPhotos.forEach(photo => {
+            if (photo.location && photo.location.lat && photo.location.lng) {
+                const photoIcon = createPhotoIcon();
+                const marker = L.marker([photo.location.lat, photo.location.lng], {
+                    icon: photoIcon,
+                    title: new Date(photo.timestamp).toLocaleString('ja-JP')
+                }).addTo(map);
+
+                // マーカークリック時に写真を表示
+                marker.on('click', () => {
+                    showPhotoFromMarker(photo);
+                });
+
+                photoMarkers.push(marker);
+            }
+        });
+
+        console.log(`写真マーカーを${photoMarkers.length}個表示しました`);
+    } catch (error) {
+        console.error('写真マーカー表示エラー:', error);
+    }
+}
+
+// マーカークリックから写真を表示
+function showPhotoFromMarker(photo) {
+    const viewer = document.getElementById('photoViewer');
+    const img = document.getElementById('viewerImage');
+    const info = document.getElementById('photoInfo');
+
+    img.src = photo.data;
+
+    const timestamp = new Date(photo.timestamp).toLocaleString('ja-JP');
+    const location = photo.location
+        ? `緯度: ${photo.location.lat.toFixed(5)}, 経度: ${photo.location.lng.toFixed(5)}`
+        : '位置情報なし';
+
+    info.innerHTML = `撮影日時: ${timestamp}<br>${location}`;
+    viewer.style.display = 'flex';
+}
+
 // 2地点間の距離を計算（メートル）- Haversine公式
 function calculateDistance(lat1, lng1, lat2, lng2) {
     const R = 6371000; // 地球の半径（メートル）
@@ -989,6 +1051,23 @@ async function takePhoto() {
         request.onsuccess = () => {
             console.log('写真を保存しました。ID:', request.result);
             photosInSession++; // セッション中の写真枚数をカウント
+
+            // 写真マーカーを追加表示
+            if (location) {
+                const photoIcon = createPhotoIcon();
+                const marker = L.marker([location.lat, location.lng], {
+                    icon: photoIcon,
+                    title: new Date(photoRecord.timestamp).toLocaleString('ja-JP')
+                }).addTo(map);
+
+                // マーカークリック時に写真を表示
+                marker.on('click', () => {
+                    showPhotoFromMarker(photoRecord);
+                });
+
+                photoMarkers.push(marker);
+            }
+
             updateStatus('写真を保存しました');
             // 2秒後にステータスを元に戻す
             setTimeout(() => {
@@ -1262,6 +1341,9 @@ async function loadDocument(doc) {
                 currentMarker = L.marker([data.lastPosition.lat, data.lastPosition.lng], { icon: arrowIcon }).addTo(map);
             }
         }
+
+        // 写真マーカーを表示（IndexedDBから）
+        await displayPhotoMarkers();
 
         updateStatus(`データを読み込みました: ${doc.id}`);
         alert(`データを読み込みました\nドキュメント名: ${doc.id}\nトラック: ${data.tracksCount || 0}件\n写真: ${data.photosCount || 0}枚`);
@@ -1553,6 +1635,9 @@ document.addEventListener('DOMContentLoaded', async function() {
 
     // 地図を初期化（保存された位置または箕面大滝）
     await initMap();
+
+    // 写真マーカーを表示
+    await displayPhotoMarkers();
 
     // メインコントロールのボタンイベント
     document.getElementById('startBtn').addEventListener('click', startTracking);

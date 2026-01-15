@@ -31,8 +31,6 @@ body {
     width: 30px;
     height: 30px;
     position: relative;
-    left: -15px;
-    top: -15px;
     transition: transform 0.3s ease;
     filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3));
 }
@@ -40,6 +38,21 @@ body {
 .arrow svg {
     width: 100%;
     height: 100%;
+}
+
+/* 写真マーカー（オレンジ色の丸） */
+.photo-marker {
+    background: transparent;
+    border: none;
+}
+
+.photo-marker-circle {
+    width: 12px;
+    height: 12px;
+    background: #FF9800;
+    border: 2px solid #F57C00;
+    border-radius: 50%;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.3);
 }
 
 /* データ管理パネル */
