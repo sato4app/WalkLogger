@@ -1342,6 +1342,53 @@ async function loadDocument(doc) {
             }
         }
 
+        // Firebaseの写真をIndexedDBにダウンロード
+        if (data.photos && data.photos.length > 0) {
+            updateStatus(`写真をダウンロード中... (0/${data.photos.length})`);
+
+            for (let i = 0; i < data.photos.length; i++) {
+                const photoData = data.photos[i];
+
+                try {
+                    // URLがある場合のみダウンロード
+                    if (photoData.url) {
+                        // URLから画像をダウンロード
+                        const response = await fetch(photoData.url);
+                        const blob = await response.blob();
+
+                        // BlobをBase64に変換
+                        const base64 = await new Promise((resolve) => {
+                            const reader = new FileReader();
+                            reader.onloadend = () => resolve(reader.result);
+                            reader.readAsDataURL(blob);
+                        });
+
+                        // IndexedDBに保存
+                        const photoRecord = {
+                            data: base64,
+                            timestamp: photoData.timestamp,
+                            location: photoData.location
+                        };
+
+                        const transaction = db.transaction([STORE_PHOTOS], 'readwrite');
+                        const store = transaction.objectStore(STORE_PHOTOS);
+
+                        await new Promise((resolve, reject) => {
+                            const request = store.add(photoRecord);
+                            request.onsuccess = () => resolve();
+                            request.onerror = () => reject(request.error);
+                        });
+
+                        console.log(`写真 ${i + 1}/${data.photos.length} をダウンロードしました`);
+                        updateStatus(`写真をダウンロード中... (${i + 1}/${data.photos.length})`);
+                    }
+                } catch (downloadError) {
+                    console.error(`写真 ${i + 1} のダウンロードエラー:`, downloadError);
+                    // エラーがあっても続行
+                }
+            }
+        }
+
         // 写真マーカーを表示（IndexedDBから）
         await displayPhotoMarkers();
 
