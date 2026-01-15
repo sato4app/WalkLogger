@@ -170,6 +170,61 @@ function base64ToBlob(base64, contentType = 'image/jpeg') {
     return new Blob([byteArray], { type: contentType });
 }
 
+// ドキュメント名入力ダイアログを表示
+function showDocNameDialog(defaultName) {
+    return new Promise((resolve) => {
+        const dialog = document.getElementById('docNameDialog');
+        const input = document.getElementById('docNameInput');
+        const okBtn = document.getElementById('docNameOkBtn');
+        const cancelBtn = document.getElementById('docNameCancelBtn');
+
+        // デフォルト名を設定
+        input.value = defaultName;
+
+        // OKボタンのイベント
+        const handleOk = () => {
+            const docName = input.value.trim();
+            if (!docName) {
+                alert('ドキュメント名を入力してください');
+                return;
+            }
+            cleanup();
+            resolve(docName);
+        };
+
+        // キャンセルボタンのイベント
+        const handleCancel = () => {
+            cleanup();
+            resolve(null);
+        };
+
+        // Enterキーでも保存
+        const handleKeyPress = (e) => {
+            if (e.key === 'Enter') {
+                handleOk();
+            }
+        };
+
+        // イベントリスナーを追加
+        okBtn.addEventListener('click', handleOk);
+        cancelBtn.addEventListener('click', handleCancel);
+        input.addEventListener('keypress', handleKeyPress);
+
+        // クリーンアップ関数
+        const cleanup = () => {
+            okBtn.removeEventListener('click', handleOk);
+            cancelBtn.removeEventListener('click', handleCancel);
+            input.removeEventListener('keypress', handleKeyPress);
+            dialog.style.display = 'none';
+        };
+
+        // ダイアログを表示
+        dialog.style.display = 'flex';
+        input.focus();
+        input.select();
+    });
+}
+
 // IndexedDBのデータをFirebaseに保存
 async function saveToFirebase() {
     if (!trackingStartTime) {
@@ -177,7 +232,10 @@ async function saveToFirebase() {
         return;
     }
 
-    if (!confirm('IndexedDBのデータをFirebaseに保存しますか？')) {
+    // ドキュメント名を入力
+    const projectName = await showDocNameDialog(trackingStartTime);
+    if (!projectName) {
+        updateStatus('保存をキャンセルしました');
         return;
     }
 
@@ -195,8 +253,6 @@ async function saveToFirebase() {
             position: lastPosition
         });
 
-        // Firebaseプロジェクト名（Start時の日時）
-        const projectName = trackingStartTime;
         console.log('Firebaseプロジェクト名:', projectName);
 
         // Firebase StorageとFirestoreの参照を取得
@@ -340,6 +396,61 @@ function getAllPhotos() {
             reject(error);
         }
     });
+}
+
+// IndexedDB初期化（サイレント版 - Start機能用）
+async function clearIndexedDBSilent() {
+    try {
+        // 最後の記録地点を取得（復元用）
+        const lastPosition = await getLastPosition();
+
+        // データベースを閉じる
+        if (db) {
+            db.close();
+            db = null;
+        }
+
+        // データベースを削除
+        await new Promise((resolve, reject) => {
+            const deleteRequest = indexedDB.deleteDatabase(DB_NAME);
+
+            deleteRequest.onsuccess = () => {
+                console.log('IndexedDBを削除しました');
+                resolve();
+            };
+
+            deleteRequest.onerror = () => {
+                console.error('IndexedDB削除エラー:', deleteRequest.error);
+                reject(deleteRequest.error);
+            };
+
+            deleteRequest.onblocked = () => {
+                console.warn('IndexedDB削除がブロックされました');
+                reject(new Error('データベースが使用中です'));
+            };
+        });
+
+        // 再初期化
+        await initIndexedDB();
+
+        // 最後の記録地点を復元
+        if (lastPosition) {
+            await saveLastPosition(lastPosition.lat, lastPosition.lng, lastPosition.zoom);
+            console.log('最後の記録地点を復元しました');
+        } else {
+            await saveLastPosition(DEFAULT_POSITION.lat, DEFAULT_POSITION.lng, DEFAULT_POSITION.zoom);
+            console.log('デフォルト位置を設定しました');
+        }
+
+        // trackingStartTimeをリセット
+        trackingStartTime = null;
+        trackingData = [];
+
+        updateStatus('IndexedDB初期化完了');
+    } catch (error) {
+        console.error('IndexedDB初期化エラー:', error);
+        throw error;
+    }
 }
 
 // IndexedDB初期化（Clear機能）
@@ -638,6 +749,34 @@ async function startTracking() {
 
     if (isTracking) {
         return;
+    }
+
+    // IndexedDBに既存データがあるか確認
+    try {
+        const allTracks = await getAllTracks();
+        const allPhotos = await getAllPhotos();
+
+        if (allTracks.length > 0 || allPhotos.length > 0) {
+            // 既存データがある場合、初期化するか確認
+            const shouldClear = confirm(
+                `IndexedDBに既存のデータがあります。\n` +
+                `トラック: ${allTracks.length}件\n` +
+                `写真: ${allPhotos.length}件\n\n` +
+                `初期化して新規記録を開始しますか？\n` +
+                `「はい」: データを削除して新規記録\n` +
+                `「いいえ」: 既存データに追記`
+            );
+
+            if (shouldClear) {
+                // IndexedDB初期化
+                await clearIndexedDBSilent();
+                console.log('IndexedDBを初期化しました');
+            } else {
+                console.log('既存データに追記します');
+            }
+        }
+    } catch (error) {
+        console.error('データ確認エラー:', error);
     }
 
     isTracking = true;
@@ -972,6 +1111,137 @@ function closePhotoViewer() {
     document.getElementById('photoViewer').style.display = 'none';
 }
 
+// 保存されたドキュメント一覧を取得して表示（Reloadボタン用）
+async function reloadFromFirebase() {
+    try {
+        updateStatus('ドキュメント一覧を取得中...');
+
+        const firestoreDb = firebase.firestore();
+        const projectsRef = firestoreDb.collection('projects');
+
+        // createdAtで降順ソート（新しい順）
+        const querySnapshot = await projectsRef.orderBy('createdAt', 'desc').get();
+
+        if (querySnapshot.empty) {
+            alert('保存されたドキュメントがありません');
+            updateStatus('ドキュメントなし');
+            return;
+        }
+
+        // ドキュメント一覧を生成
+        const documents = [];
+        querySnapshot.forEach(doc => {
+            documents.push({
+                id: doc.id,
+                data: doc.data()
+            });
+        });
+
+        // ドキュメント選択ダイアログを表示
+        showDocumentListDialog(documents);
+
+        updateStatus('ドキュメント一覧取得完了');
+    } catch (error) {
+        console.error('ドキュメント取得エラー:', error);
+        alert('ドキュメントの取得に失敗しました: ' + error.message);
+        updateStatus('ドキュメント取得エラー');
+    }
+}
+
+// ドキュメント選択ダイアログを表示
+function showDocumentListDialog(documents) {
+    const documentList = document.getElementById('documentList');
+    documentList.innerHTML = '';
+
+    documents.forEach(doc => {
+        const docItem = document.createElement('div');
+        docItem.className = 'document-item';
+
+        const docInfo = document.createElement('div');
+        docInfo.className = 'document-info';
+
+        const docName = document.createElement('div');
+        docName.className = 'document-name';
+        docName.textContent = doc.id;
+
+        const docDetails = document.createElement('div');
+        docDetails.className = 'document-details';
+        const createdAt = doc.data.createdAt?.toDate();
+        const dateStr = createdAt ? createdAt.toLocaleString('ja-JP') : '不明';
+        docDetails.textContent = `作成日時: ${dateStr} | トラック: ${doc.data.tracksCount || 0}件 | 写真: ${doc.data.photosCount || 0}枚`;
+
+        docInfo.appendChild(docName);
+        docInfo.appendChild(docDetails);
+
+        const loadBtn = document.createElement('button');
+        loadBtn.className = 'document-load-btn';
+        loadBtn.textContent = '読み込み';
+        loadBtn.onclick = () => loadDocument(doc);
+
+        docItem.appendChild(docInfo);
+        docItem.appendChild(loadBtn);
+
+        documentList.appendChild(docItem);
+    });
+
+    document.getElementById('documentListDialog').style.display = 'flex';
+}
+
+// ドキュメント選択ダイアログを閉じる
+function closeDocumentListDialog() {
+    document.getElementById('documentListDialog').style.display = 'none';
+}
+
+// 選択したドキュメントを読み込んで地図に表示
+async function loadDocument(doc) {
+    try {
+        updateStatus('データを読み込み中...');
+        closeDocumentListDialog();
+
+        const data = doc.data;
+
+        // 地図上の既存データをクリア
+        if (trackingPath) {
+            trackingPath.setLatLngs([]);
+        }
+
+        // トラックデータを地図に表示
+        if (data.tracks && data.tracks.length > 0) {
+            const allPoints = [];
+            data.tracks.forEach(track => {
+                if (track.points) {
+                    track.points.forEach(point => {
+                        allPoints.push([point.lat, point.lng]);
+                    });
+                }
+            });
+
+            if (allPoints.length > 0) {
+                trackingPath.setLatLngs(allPoints);
+                // 最初の地点に地図を移動
+                map.setView(allPoints[0], 15);
+            }
+        }
+
+        // 最終位置にマーカーを表示
+        if (data.lastPosition) {
+            if (currentMarker) {
+                currentMarker.setLatLng([data.lastPosition.lat, data.lastPosition.lng]);
+            } else {
+                currentMarker = L.marker([data.lastPosition.lat, data.lastPosition.lng], { icon: triangleIcon }).addTo(map);
+            }
+        }
+
+        updateStatus(`データを読み込みました: ${doc.id}`);
+        alert(`データを読み込みました\nドキュメント名: ${doc.id}\nトラック: ${data.tracksCount || 0}件\n写真: ${data.photosCount || 0}枚`);
+
+    } catch (error) {
+        console.error('ドキュメント読み込みエラー:', error);
+        alert('データの読み込みに失敗しました: ' + error.message);
+        updateStatus('データ読み込みエラー');
+    }
+}
+
 // データサイズ情報を表示（Sizeボタン用）
 async function showDataSize() {
     try {
@@ -1249,16 +1519,31 @@ document.addEventListener('DOMContentLoaded', async function() {
         }
     });
 
-    // データ管理パネルのボタンイベント
-    document.getElementById('dataListBtn').addEventListener('click', showPhotoList);
-    document.getElementById('dataSizeBtn').addEventListener('click', showDataSize);
-    document.getElementById('dataSaveBtn').addEventListener('click', saveToFirebase);
-    document.getElementById('dataClearBtn').addEventListener('click', clearIndexedDB);
-
-    // Returnボタンのクリックイベント（メインコントロールに戻る）
-    document.getElementById('dataReturnBtn').addEventListener('click', function() {
+    // メインコントロールに戻る共通関数
+    function returnToMainControl() {
         document.getElementById('dataPanel').style.display = 'none';
         document.getElementById('controls').style.display = 'flex';
+    }
+
+    // データ管理パネルのボタンイベント
+    document.getElementById('dataListBtn').addEventListener('click', async function() {
+        await showPhotoList();
+        returnToMainControl();
+    });
+
+    document.getElementById('dataSizeBtn').addEventListener('click', async function() {
+        await showDataSize();
+        returnToMainControl();
+    });
+
+    document.getElementById('dataReloadBtn').addEventListener('click', async function() {
+        await reloadFromFirebase();
+        returnToMainControl();
+    });
+
+    document.getElementById('dataSaveBtn').addEventListener('click', async function() {
+        await saveToFirebase();
+        returnToMainControl();
     });
 
     // 写真一覧とビューアの閉じるボタン
@@ -1267,6 +1552,9 @@ document.addEventListener('DOMContentLoaded', async function() {
 
     // 統計ダイアログのOKボタン
     document.getElementById('statsOkBtn').addEventListener('click', closeStatsDialog);
+
+    // ドキュメント一覧ダイアログのキャンセルボタン
+    document.getElementById('closeDocListBtn').addEventListener('click', closeDocumentListDialog);
 
     // ページの可視性が変化した時のイベントリスナー（Wake Lock再取得用）
     document.addEventListener('visibilitychange', handleVisibilityChange);
