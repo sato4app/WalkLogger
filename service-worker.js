@@ -1,7 +1,7 @@
 // WalkLogger Service Worker
 // PWA対応: オフライン機能とキャッシュ管理
 
-const CACHE_NAME = 'walklogger-v2';
+const CACHE_NAME = 'walklogger-v3';
 const urlsToCache = [
   './',
   './index.html',
