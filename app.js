@@ -839,8 +839,8 @@ async function startTracking() {
                 `トラック: ${allTracks.length}件\n` +
                 `写真: ${allPhotos.length}件\n\n` +
                 `初期化して新規記録を開始しますか？\n` +
-                `「はい」: データを削除して新規記録\n` +
-                `「いいえ」: 既存データに追記`
+                `「OK」: データを削除して新規記録\n` +
+                `「キャンセル」: 既存データに追記`
             );
 
             if (shouldClear) {
