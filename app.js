@@ -839,6 +839,13 @@ async function startTracking() {
         return;
     }
 
+    // IndexedDBが初期化されているか確認
+    if (!db) {
+        alert('データベースが初期化されていません。ページを再読み込みしてください。');
+        console.error('IndexedDBが未初期化です');
+        return;
+    }
+
     // IndexedDBに既存データがあるか確認
     try {
         const allTracks = await getAllTracks();
@@ -866,6 +873,8 @@ async function startTracking() {
         }
     } catch (error) {
         console.error('データ確認エラー:', error);
+        alert('データ確認中にエラーが発生しました。ページを再読み込みしてください。');
+        return;
     }
 
     isTracking = true;
@@ -1693,6 +1702,8 @@ document.addEventListener('DOMContentLoaded', async function() {
     } catch (error) {
         console.error('IndexedDB初期化エラー:', error);
         updateStatus('データベース初期化エラー');
+        alert('データベースの初期化に失敗しました。ページを再読み込みしてください。\nエラー: ' + error.message);
+        return; // 初期化失敗時は後続処理をスキップ
     }
 
     // 地図を初期化（保存された位置または箕面大滝）
