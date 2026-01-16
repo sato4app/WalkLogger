@@ -143,6 +143,18 @@
         </div>
     </div>
 
+    <!-- データ初期化確認ダイアログ（Startボタン用） -->
+    <div id="clearDataDialog" style="display: none;">
+        <div id="clearDataContent">
+            <h2>既存データの確認</h2>
+            <div id="clearDataBody"></div>
+            <div class="clear-data-buttons">
+                <button id="clearDataInitBtn" class="clear-data-btn clear-data-init">データ初期化</button>
+                <button id="clearDataAppendBtn" class="clear-data-btn clear-data-append">データ追記</button>
+            </div>
+        </div>
+    </div>
+
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
     <!-- Firebase SDK (Compat版) -->

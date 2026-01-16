@@ -278,6 +278,9 @@ async function saveToFirebase() {
         const firestoreDb = firebase.firestore();
         const projectRef = firestoreDb.collection('projects').doc(projectName);
 
+        // トラック統計を計算
+        const trackStats = calculateTrackStats(allTracks);
+
         // トラッキングデータを配列形式に変換（精度調整）
         const formattedTracks = allTracks.map(track => ({
             timestamp: track.timestamp,
@@ -352,10 +355,10 @@ async function saveToFirebase() {
         // プロジェクトドキュメントを保存（1回の書き込みで完了）
         await projectRef.set(projectData);
         console.log('プロジェクトデータを保存しました');
-        console.log(`トラック: ${allTracks.length}件、写真: ${allPhotos.length}件`);
+        console.log(`トラック: ${trackStats.trackCount}件（位置記録点: ${trackStats.totalPoints}件）、写真: ${allPhotos.length}件`);
 
         updateStatus('Firebase保存完了');
-        alert(`Firebaseに保存しました\nプロジェクト名: ${projectName}\nトラック: ${allTracks.length}件\n写真: ${allPhotos.length}件`);
+        alert(`Firebaseに保存しました\nプロジェクト名: ${projectName}\nトラック: ${trackStats.trackCount}件（位置記録点: ${trackStats.totalPoints}件）\n写真: ${allPhotos.length}件`);
 
     } catch (error) {
         console.error('Firebase保存エラー:', error);
@@ -388,6 +391,15 @@ function getAllTracks() {
             reject(error);
         }
     });
+}
+
+// トラック件数と総位置記録点数を計算
+function calculateTrackStats(tracks) {
+    const trackCount = tracks.length;
+    const totalPoints = tracks.reduce((sum, track) => {
+        return sum + (track.points ? track.points.length : 0);
+    }, 0);
+    return { trackCount, totalPoints };
 }
 
 // IndexedDBから全写真データを取得
@@ -831,16 +843,17 @@ async function startTracking() {
     try {
         const allTracks = await getAllTracks();
         const allPhotos = await getAllPhotos();
+        const trackStats = calculateTrackStats(allTracks);
 
         if (allTracks.length > 0 || allPhotos.length > 0) {
             // 既存データがある場合、初期化するか確認
             const shouldClear = confirm(
                 `IndexedDBに既存のデータがあります。\n` +
-                `トラック: ${allTracks.length}件\n` +
+                `トラック: ${trackStats.trackCount}件（位置記録点: ${trackStats.totalPoints}件）\n` +
                 `写真: ${allPhotos.length}件\n\n` +
-                `初期化して新規記録を開始しますか？\n` +
-                `「OK」: データを削除して新規記録\n` +
-                `「キャンセル」: 既存データに追記`
+                `データを初期化して新規記録を開始しますか？\n` +
+                `「OK」: データの初期化\n` +
+                `「キャンセル」: データを追記`
             );
 
             if (shouldClear) {
@@ -1392,8 +1405,11 @@ async function loadDocument(doc) {
         // 写真マーカーを表示（IndexedDBから）
         await displayPhotoMarkers();
 
+        // トラック統計を計算
+        const trackStats = data.tracks ? calculateTrackStats(data.tracks) : { trackCount: 0, totalPoints: 0 };
+
         updateStatus(`データを読み込みました: ${doc.id}`);
-        alert(`データを読み込みました\nドキュメント名: ${doc.id}\nトラック: ${data.tracksCount || 0}件\n写真: ${data.photosCount || 0}枚`);
+        alert(`データを読み込みました\nドキュメント名: ${doc.id}\nトラック: ${trackStats.trackCount}件（位置記録点: ${trackStats.totalPoints}件）\n写真: ${data.photosCount || 0}枚`);
 
     } catch (error) {
         console.error('ドキュメント読み込みエラー:', error);
@@ -1410,13 +1426,12 @@ async function showDataSize() {
         // IndexedDBから全データを取得
         const allTracks = await getAllTracks();
         const allPhotos = await getAllPhotos();
+        const trackStats = calculateTrackStats(allTracks);
 
-        // GPS記録地点数とサイズを計算
-        let gpsPointsCount = 0;
+        // GPSデータサイズを計算
         let gpsDataSizeBytes = 0;
 
         allTracks.forEach(track => {
-            gpsPointsCount += track.totalPoints;
             const trackStr = JSON.stringify(track);
             gpsDataSizeBytes += new Blob([trackStr]).size;
         });
@@ -1469,8 +1484,8 @@ async function showDataSize() {
         const statsHTML = `
             <div class="stat-section">
                 <div class="stat-row">
-                    <span class="stat-label">GPS記録地点数:</span>
-                    <span class="stat-value">${gpsPointsCount}点</span>
+                    <span class="stat-label">トラック:</span>
+                    <span class="stat-value">${trackStats.trackCount}件（位置記録点: ${trackStats.totalPoints}件）</span>
                 </div>
                 <div class="stat-row">
                     <span class="stat-label">GPSデータサイズ:</span>
