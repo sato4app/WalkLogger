@@ -1122,6 +1122,8 @@ async function takePhoto() {
         // 必ずボタンを元に戻す
         photoBtn.disabled = false;
         photoBtn.style.opacity = '';
+        photoBtn.style.backgroundColor = '';
+        photoBtn.style.color = '';
     }
 }
 
@@ -1726,6 +1728,13 @@ document.addEventListener('DOMContentLoaded', async function() {
             // dataPanelを表示し、controlsを隠す
             dataPanel.style.display = 'flex';
             controls.style.display = 'none';
+
+            // dataPanelのボタンスタイルをリセット（hover状態を解除）
+            const dataBtns = dataPanel.querySelectorAll('.control-btn');
+            dataBtns.forEach(btn => {
+                btn.style.backgroundColor = '';
+                btn.style.color = '';
+            });
         } else {
             // dataPanelを隠し、controlsを表示
             dataPanel.style.display = 'none';
