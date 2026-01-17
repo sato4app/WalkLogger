@@ -934,6 +934,7 @@ async function startTracking() {
     // UIを更新
     document.getElementById('startBtn').disabled = true;
     document.getElementById('stopBtn').disabled = false;
+    document.getElementById('photoBtn').disabled = false;
     updateStatus('GPS追跡を開始しました');
 }
 
@@ -958,6 +959,7 @@ async function stopTracking() {
     // UIを更新
     document.getElementById('startBtn').disabled = false;
     document.getElementById('stopBtn').disabled = true;
+    document.getElementById('photoBtn').disabled = true;
 
     // トラッキングデータを保存
     if (trackingData.length > 0) {
