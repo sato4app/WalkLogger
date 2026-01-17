@@ -1339,10 +1339,19 @@ async function loadDocument(doc) {
 
         const data = doc.data;
 
+        // IndexedDBをクリア（重複防止）
+        await clearIndexedDBSilent();
+        console.log('Reload前にIndexedDBをクリアしました');
+
         // 地図上の既存データをクリア
         if (trackingPath) {
             trackingPath.setLatLngs([]);
         }
+
+        // 写真マーカーをクリア
+        photoMarkers.forEach(marker => map.removeLayer(marker));
+        photoMarkers = [];
+        console.log('写真マーカーをクリアしました');
 
         // トラックデータをIndexedDBに保存して地図に表示
         if (data.tracks && data.tracks.length > 0) {
