@@ -882,6 +882,11 @@ async function startTracking() {
     photosInSession = 0; // 写真カウントをリセット
     lastRecordedPoint = null; // 最後の記録地点をリセット
 
+    // Saveボタンを有効化（新規データ記録のため）
+    const saveBtn = document.getElementById('dataSaveBtn');
+    saveBtn.disabled = false;
+    console.log('GPS追跡開始：Saveボタンを有効化しました');
+
     // Start時の日時を記録
     trackingStartDate = new Date();
     const year = trackingStartDate.getFullYear();
@@ -1337,16 +1342,35 @@ async function loadDocument(doc) {
             trackingPath.setLatLngs([]);
         }
 
-        // トラックデータを地図に表示
+        // トラックデータをIndexedDBに保存して地図に表示
         if (data.tracks && data.tracks.length > 0) {
             const allPoints = [];
-            data.tracks.forEach(track => {
+
+            // 各トラックをIndexedDBに保存
+            for (const track of data.tracks) {
+                try {
+                    const transaction = db.transaction([STORE_TRACKS], 'readwrite');
+                    const store = transaction.objectStore(STORE_TRACKS);
+
+                    await new Promise((resolve, reject) => {
+                        const request = store.add(track);
+                        request.onsuccess = () => resolve();
+                        request.onerror = () => reject(request.error);
+                    });
+
+                    console.log(`トラックを保存しました（${track.totalPoints || track.points?.length || 0}点）`);
+                } catch (trackError) {
+                    console.error('トラック保存エラー:', trackError);
+                    // エラーがあっても続行
+                }
+
+                // 地図表示用にポイントを収集
                 if (track.points) {
                     track.points.forEach(point => {
                         allPoints.push([point.lat, point.lng]);
                     });
                 }
-            });
+            }
 
             if (allPoints.length > 0) {
                 trackingPath.setLatLngs(allPoints);
@@ -1415,6 +1439,11 @@ async function loadDocument(doc) {
 
         // 写真マーカーを表示（IndexedDBから）
         await displayPhotoMarkers();
+
+        // Saveボタンを無効化（Reloadしたデータは再保存不要）
+        const saveBtn = document.getElementById('dataSaveBtn');
+        saveBtn.disabled = true;
+        console.log('Reloadしたデータのため、Saveボタンを無効化しました');
 
         // トラック統計を計算
         const trackStats = data.tracks ? calculateTrackStats(data.tracks) : { trackCount: 0, totalPoints: 0 };
