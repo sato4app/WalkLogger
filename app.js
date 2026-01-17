@@ -640,9 +640,11 @@ async function displayPhotoMarkers() {
 
         // IndexedDBから全写真データを取得
         const allPhotos = await getAllPhotos();
+        console.log(`IndexedDBから写真データを取得: ${allPhotos.length}件`);
 
         // 位置情報がある写真のみマーカーを表示
-        allPhotos.forEach(photo => {
+        let markerCount = 0;
+        allPhotos.forEach((photo, index) => {
             if (photo.location && photo.location.lat && photo.location.lng) {
                 const photoIcon = createPhotoIcon();
                 const marker = L.marker([photo.location.lat, photo.location.lng], {
@@ -656,10 +658,13 @@ async function displayPhotoMarkers() {
                 });
 
                 photoMarkers.push(marker);
+                markerCount++;
+            } else {
+                console.warn(`写真 ${index + 1}: 位置情報なし`);
             }
         });
 
-        console.log(`写真マーカーを${photoMarkers.length}個表示しました`);
+        console.log(`写真マーカーを${markerCount}個表示しました（全${allPhotos.length}件中）`);
     } catch (error) {
         console.error('写真マーカー表示エラー:', error);
     }
@@ -1403,7 +1408,11 @@ async function loadDocument(doc) {
 
         // Firebaseの写真をIndexedDBにダウンロード
         if (data.photos && data.photos.length > 0) {
+            console.log(`写真データ: ${data.photos.length}件を読み込み開始`);
             updateStatus(`写真をダウンロード中... (0/${data.photos.length})`);
+
+            let successCount = 0;
+            let failCount = 0;
 
             for (let i = 0; i < data.photos.length; i++) {
                 const photoData = data.photos[i];
@@ -1411,9 +1420,15 @@ async function loadDocument(doc) {
                 try {
                     // URLがある場合のみダウンロード
                     if (photoData.url) {
+                        console.log(`写真 ${i + 1} をダウンロード中: ${photoData.url}`);
+
                         // URLから画像をダウンロード
                         const response = await fetch(photoData.url);
+                        if (!response.ok) {
+                            throw new Error(`HTTP error! status: ${response.status}`);
+                        }
                         const blob = await response.blob();
+                        console.log(`写真 ${i + 1} ダウンロード完了: ${blob.size} bytes`);
 
                         // BlobをBase64に変換
                         const base64 = await new Promise((resolve) => {
@@ -1438,14 +1453,23 @@ async function loadDocument(doc) {
                             request.onerror = () => reject(request.error);
                         });
 
-                        console.log(`写真 ${i + 1}/${data.photos.length} をダウンロードしました`);
+                        successCount++;
+                        console.log(`写真 ${i + 1}/${data.photos.length} をIndexedDBに保存しました`);
                         updateStatus(`写真をダウンロード中... (${i + 1}/${data.photos.length})`);
+                    } else {
+                        console.warn(`写真 ${i + 1} のURLが空です`);
+                        failCount++;
                     }
                 } catch (downloadError) {
                     console.error(`写真 ${i + 1} のダウンロードエラー:`, downloadError);
+                    failCount++;
                     // エラーがあっても続行
                 }
             }
+
+            console.log(`写真ダウンロード完了: 成功 ${successCount}件、失敗 ${failCount}件`);
+        } else {
+            console.log('写真データがありません');
         }
 
         // 写真マーカーを表示（IndexedDBから）
