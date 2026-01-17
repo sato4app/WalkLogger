@@ -291,6 +291,8 @@ async function saveToFirebase() {
         // 写真をStorageにアップロードしてダウンロードURLを取得
         updateStatus(`写真をアップロード中... (0/${allPhotos.length})`);
         const formattedPhotos = [];
+        let uploadSuccessCount = 0;
+        let uploadFailCount = 0;
 
         for (let i = 0; i < allPhotos.length; i++) {
             const photo = allPhotos[i];
@@ -317,7 +319,7 @@ async function saveToFirebase() {
                 // ダウンロードURLを取得
                 const downloadURL = await storageRef.getDownloadURL();
 
-                // Firestoreに保存するデータ
+                // Firestoreに保存するデータ（URLがある場合のみ追加）
                 formattedPhotos.push({
                     url: downloadURL,
                     storagePath: photoPath,
@@ -325,18 +327,21 @@ async function saveToFirebase() {
                     location: formatPositionData(photo.location)
                 });
 
-                console.log(`写真 ${i + 1}/${allPhotos.length} をアップロードしました`);
+                uploadSuccessCount++;
+                console.log(`写真 ${i + 1}/${allPhotos.length} をアップロードしました: ${downloadURL}`);
                 updateStatus(`写真をアップロード中... (${i + 1}/${allPhotos.length})`);
 
             } catch (uploadError) {
+                uploadFailCount++;
                 console.error(`写真 ${i + 1} のアップロードエラー:`, uploadError);
-                // エラーがあっても続行
-                formattedPhotos.push({
-                    error: uploadError.message,
-                    timestamp: photo.timestamp,
-                    location: formatPositionData(photo.location)
-                });
+                alert(`写真 ${i + 1} のアップロードに失敗しました: ${uploadError.message}\n\nこの写真はスキップされます。`);
+                // エラー時は配列に追加しない（URLがないデータは無意味）
             }
+        }
+
+        console.log(`写真アップロード完了: 成功 ${uploadSuccessCount}件、失敗 ${uploadFailCount}件`);
+        if (uploadFailCount > 0) {
+            alert(`写真アップロード: ${uploadSuccessCount}件成功、${uploadFailCount}件失敗\n失敗した写真は保存されません。`);
         }
 
         updateStatus('Firestoreに保存中...');
