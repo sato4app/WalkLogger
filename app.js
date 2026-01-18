@@ -400,8 +400,17 @@ function getAllTracks() {
 
 // トラック件数と総位置記録点数を計算
 function calculateTrackStats(tracks) {
+    if (!tracks || !Array.isArray(tracks)) {
+        console.warn('calculateTrackStats: tracks が配列ではありません', tracks);
+        return { trackCount: 0, totalPoints: 0 };
+    }
+
     const trackCount = tracks.length;
     const totalPoints = tracks.reduce((sum, track) => {
+        if (!track) {
+            console.warn('calculateTrackStats: track が null/undefined です');
+            return sum;
+        }
         return sum + (track.points ? track.points.length : 0);
     }, 0);
     return { trackCount, totalPoints };
@@ -860,9 +869,13 @@ async function startTracking() {
 
     // IndexedDBに既存データがあるか確認
     try {
+        console.log('既存データを確認中...');
         const allTracks = await getAllTracks();
+        console.log('トラック取得完了:', allTracks.length, '件');
         const allPhotos = await getAllPhotos();
+        console.log('写真取得完了:', allPhotos.length, '件');
         const trackStats = calculateTrackStats(allTracks);
+        console.log('統計計算完了:', trackStats);
 
         if (allTracks.length > 0 || allPhotos.length > 0) {
             // 既存データがある場合、初期化するか確認
@@ -885,7 +898,9 @@ async function startTracking() {
         }
     } catch (error) {
         console.error('データ確認エラー:', error);
-        alert('データ確認中にエラーが発生しました。ページを再読み込みしてください。');
+        console.error('エラー詳細:', error.message);
+        console.error('エラースタック:', error.stack);
+        alert('データ確認中にエラーが発生しました。\nエラー: ' + error.message + '\n\nページを再読み込みしてください。');
         return;
     }
 
