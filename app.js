@@ -850,9 +850,11 @@ async function startTracking() {
     }
 
     // IndexedDBが初期化されているか確認
+    console.log('startTracking: db変数の状態:', db ? '初期化済み' : 'null');
     if (!db) {
         alert('データベースが初期化されていません。ページを再読み込みしてください。');
-        console.error('IndexedDBが未初期化です');
+        console.error('IndexedDBが未初期化です。db =', db);
+        console.error('typeof db:', typeof db);
         return;
     }
 
@@ -1770,6 +1772,12 @@ document.addEventListener('DOMContentLoaded', async function() {
     try {
         await initIndexedDB();
         console.log('IndexedDB初期化完了');
+        console.log('db変数の状態:', db ? '初期化済み' : 'null');
+
+        // dbがnullの場合は明示的にエラー
+        if (!db) {
+            throw new Error('IndexedDB初期化後もdb変数がnullです');
+        }
     } catch (error) {
         console.error('IndexedDB初期化エラー:', error);
         updateStatus('データベース初期化エラー');
