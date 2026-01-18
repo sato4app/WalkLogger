@@ -251,33 +251,37 @@ async function saveToFirebase() {
         return;
     }
 
-    // ドキュメント名を入力
-    const projectName = await showDocNameDialog(trackingStartTime);
-    if (!projectName) {
-        updateStatus('保存をキャンセルしました');
-        return;
-    }
-
     try {
         updateStatus('Firebaseに保存中...');
 
-        // 認証状態を確認
+        // 認証状態を確認して UID を取得
         const currentUser = firebase.auth().currentUser;
         console.log('Firebase認証状態:', currentUser ? 'ログイン済み' : '未ログイン');
+
+        const userIdPrefix = currentUser ? currentUser.uid.substring(0, 8) : 'local';
+
+        // ドキュメント名のデフォルト値に UID を含める
+        const defaultProjectName = `${trackingStartTime}_${userIdPrefix}`;
+
+        // ドキュメント名を入力
+        const projectName = await showDocNameDialog(defaultProjectName);
+        if (!projectName) {
+            updateStatus('保存をキャンセルしました');
+            return;
+        }
+
+        console.log('保存するプロジェクト名:', projectName);
+
         if (currentUser) {
             console.log('ユーザーUID:', currentUser.uid);
             console.log('匿名ユーザー:', currentUser.isAnonymous);
         } else {
-            console.error('Firebaseにログインしていません。匿名認証を実行します...');
-            // 匿名認証を試みる
-            try {
-                await firebase.auth().signInAnonymously();
-                console.log('匿名認証成功');
-            } catch (authError) {
-                console.error('匿名認証エラー:', authError);
-                alert('Firebase認証に失敗しました: ' + authError.message);
-                return;
-            }
+            console.warn('Firebaseにログインしていません。');
+            console.warn('写真のアップロードはスキップされます。');
+            console.warn('GPS追跡データのみFirestoreに保存します。');
+
+            // 認証なしでも続行（写真アップロードはスキップ）
+            // Firestoreへの保存は認証不要の可能性があるため試行
         }
 
         // IndexedDBから全データを取得
@@ -309,22 +313,28 @@ async function saveToFirebase() {
         }));
 
         // 写真をStorageにアップロードしてダウンロードURLを取得
-        updateStatus(`写真をアップロード中... (0/${allPhotos.length})`);
         const formattedPhotos = [];
         let uploadSuccessCount = 0;
         let uploadFailCount = 0;
 
-        for (let i = 0; i < allPhotos.length; i++) {
-            const photo = allPhotos[i];
+        // 認証状態によって写真アップロードをスキップ
+        if (!currentUser && allPhotos.length > 0) {
+            console.warn(`認証されていないため、${allPhotos.length}件の写真アップロードをスキップします。`);
+            uploadFailCount = allPhotos.length;
+        } else if (allPhotos.length > 0) {
+            updateStatus(`写真をアップロード中... (0/${allPhotos.length})`);
 
-            try {
-                // アップロード前に認証状態を再確認
-                const authUser = firebase.auth().currentUser;
-                console.log(`写真 ${i + 1} アップロード前の認証状態:`, authUser ? `ログイン済み (UID: ${authUser.uid})` : '未ログイン');
+            for (let i = 0; i < allPhotos.length; i++) {
+                const photo = allPhotos[i];
 
-                if (!authUser) {
-                    throw new Error('Firebase認証が切れています。ページを再読み込みしてください。');
-                }
+                try {
+                    // アップロード前に認証状態を再確認
+                    const authUser = firebase.auth().currentUser;
+                    console.log(`写真 ${i + 1} アップロード前の認証状態:`, authUser ? `ログイン済み (UID: ${authUser.uid})` : '未ログイン');
+
+                    if (!authUser) {
+                        throw new Error('Firebase認証が無効です');
+                    }
 
                 // Base64をBlobに変換
                 const blob = base64ToBlob(photo.data);
@@ -371,7 +381,8 @@ async function saveToFirebase() {
                 alert(`写真 ${i + 1} のアップロードに失敗しました: ${uploadError.message}\n\nこの写真はスキップされます。`);
                 // エラー時は配列に追加しない（URLがないデータは無意味）
             }
-        }
+            } // for ループの終了
+        } // else if の終了
 
         console.log(`写真アップロード完了: 成功 ${uploadSuccessCount}件、失敗 ${uploadFailCount}件`);
         if (uploadFailCount > 0) {
@@ -382,6 +393,7 @@ async function saveToFirebase() {
 
         // プロジェクトデータを作成（tracks, photosを配列として含む）
         const projectData = {
+            userId: currentUser ? currentUser.uid : null, // ユーザーIDを保存
             startTime: trackingStartTime,
             createdAt: firebase.firestore.FieldValue.serverTimestamp(),
             lastPosition: formatPositionData(lastPosition),
@@ -1397,7 +1409,8 @@ function showDocumentListDialog(documents) {
         docDetails.className = 'document-details';
         const createdAt = doc.data.createdAt?.toDate();
         const dateStr = createdAt ? createdAt.toLocaleString('ja-JP') : '不明';
-        docDetails.textContent = `作成日時: ${dateStr} | トラック: ${doc.data.tracksCount || 0}件 | 写真: ${doc.data.photosCount || 0}枚`;
+        const userId = doc.data.userId ? `UID: ${doc.data.userId.substring(0, 8)}...` : 'UID: 不明';
+        docDetails.textContent = `作成日時: ${dateStr} | ${userId} | トラック: ${doc.data.tracksCount || 0}件 | 写真: ${doc.data.photosCount || 0}枚`;
 
         docInfo.appendChild(docName);
         docInfo.appendChild(docDetails);
@@ -1846,7 +1859,7 @@ function handleDeviceOrientation(event) {
 
 // イベントリスナーの設定
 document.addEventListener('DOMContentLoaded', async function() {
-    // Firebase匿名認証を実行
+    // Firebase匿名認証を実行（オプション機能）
     try {
         console.log('Firebase匿名認証を開始...');
         await firebase.auth().signInAnonymously();
@@ -1855,7 +1868,28 @@ document.addEventListener('DOMContentLoaded', async function() {
         firebaseAuthReady = true; // 認証完了フラグを設定
     } catch (authError) {
         console.error('Firebase匿名認証エラー:', authError);
-        alert('Firebase認証に失敗しました。写真の保存ができない可能性があります。\nエラー: ' + authError.message);
+
+        // auth/configuration-not-found エラーの場合は詳細な説明を表示
+        if (authError.code === 'auth/configuration-not-found') {
+            console.warn('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+            console.warn('⚠️  Firebase Authentication が有効化されていません');
+            console.warn('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+            console.warn('');
+            console.warn('📌 Firebase Console で以下の手順を実施してください:');
+            console.warn('   https://console.firebase.google.com/');
+            console.warn('');
+            console.warn('1️⃣  プロジェクト "walklog-sato" を開く');
+            console.warn('2️⃣  左サイドバーから「Authentication」を選択');
+            console.warn('3️⃣  「始める」ボタンをクリック');
+            console.warn('4️⃣  ログイン方法で「匿名」を有効にする');
+            console.warn('');
+            console.warn('⚠️  認証が無効の場合、写真のFirebase保存ができません');
+            console.warn('✅  GPS記録とローカル保存（IndexedDB）は正常に動作します');
+            console.warn('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+        } else {
+            console.error('予期しない認証エラー:', authError.message);
+        }
+
         firebaseAuthReady = false; // 認証失敗
         // 認証失敗でもアプリは続行（GPS記録は可能）
     }
