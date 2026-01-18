@@ -1516,21 +1516,35 @@ async function loadDocument(doc) {
                 const photoData = data.photos[i];
 
                 try {
-                    // URLがある場合のみダウンロード
-                    if (photoData.url) {
-                        console.log(`写真 ${i + 1} をダウンロード中: ${photoData.url}`);
+                    let blob;
 
-                        // URLから画像をダウンロード
+                    // storagePathがある場合はStorage SDKを使用、なければURLから取得
+                    if (photoData.storagePath) {
+                        console.log(`写真 ${i + 1} をダウンロード中 (storagePath): ${photoData.storagePath}`);
+
+                        // Firebase Storage SDKを使用してダウンロード（CORS回避）
+                        const storageRef = storage.ref(photoData.storagePath);
+                        blob = await storageRef.getBlob();
+                        console.log(`写真 ${i + 1} ダウンロード完了: ${blob.size} bytes, type: ${blob.type}`);
+                    } else if (photoData.url) {
+                        console.log(`写真 ${i + 1} をダウンロード中 (URL): ${photoData.url}`);
+
+                        // URLから画像をダウンロード（フォールバック）
                         const response = await fetch(photoData.url);
                         if (!response.ok) {
                             throw new Error(`HTTP error! status: ${response.status}`);
                         }
-                        const blob = await response.blob();
+                        blob = await response.blob();
                         console.log(`写真 ${i + 1} ダウンロード完了: ${blob.size} bytes, type: ${blob.type}`);
+                    } else {
+                        console.warn(`写真 ${i + 1} のstoragePathとURLが両方とも空です:`, photoData);
+                        failCount++;
+                        continue;
+                    }
 
-                        // BlobをBase64に変換
-                        const base64 = await new Promise((resolve, reject) => {
-                            const reader = new FileReader();
+                    // BlobをBase64に変換
+                    const base64 = await new Promise((resolve, reject) => {
+                        const reader = new FileReader();
                             reader.onloadend = () => {
                                 console.log(`写真 ${i + 1} Base64変換完了: ${reader.result ? reader.result.substring(0, 50) + '...' : 'null'}`);
                                 resolve(reader.result);
@@ -1574,10 +1588,7 @@ async function loadDocument(doc) {
                         successCount++;
                         console.log(`写真 ${i + 1}/${data.photos.length} をIndexedDBに保存しました`);
                         updateStatus(`写真をダウンロード中... (${i + 1}/${data.photos.length})`);
-                    } else {
-                        console.warn(`写真 ${i + 1} のURLが空です:`, photoData);
-                        failCount++;
-                    }
+
                 } catch (downloadError) {
                     console.error(`写真 ${i + 1} のダウンロードエラー:`, downloadError);
                     console.error(`エラー詳細:`, {
