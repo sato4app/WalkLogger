@@ -992,10 +992,11 @@ async function stopTracking() {
     if (trackingData.length > 0) {
         // 最後の記録地点を保存
         const lastPoint = trackingData[trackingData.length - 1];
-        saveLastPosition(lastPoint.lat, lastPoint.lng, map.getZoom());
+        await saveLastPosition(lastPoint.lat, lastPoint.lng, map.getZoom());
         console.log('最後の記録地点を保存しました:', lastPoint.lat, lastPoint.lng);
 
-        saveTrackingData();
+        // IndexedDBへの保存完了を待つ
+        await saveTrackingData();
         updateStatus(`GPS追跡を停止しました (${trackingData.length}点記録)`);
     } else {
         updateStatus('GPS追跡を停止しました');
@@ -1019,19 +1020,26 @@ async function saveTrackingData() {
     try {
         const transaction = db.transaction([STORE_TRACKS], 'readwrite');
         const store = transaction.objectStore(STORE_TRACKS);
-        const request = store.add(trackData);
 
-        request.onsuccess = () => {
-            console.log('トラッキングデータを保存しました。ID:', request.result);
-        };
+        // Promiseでラップして完了を待つ
+        await new Promise((resolve, reject) => {
+            const request = store.add(trackData);
 
-        request.onerror = () => {
-            console.error('データ保存エラー:', request.error);
-            updateStatus('データ保存エラー');
-        };
+            request.onsuccess = () => {
+                console.log('トラッキングデータを保存しました。ID:', request.result);
+                resolve();
+            };
+
+            request.onerror = () => {
+                console.error('データ保存エラー:', request.error);
+                updateStatus('データ保存エラー');
+                reject(request.error);
+            };
+        });
     } catch (e) {
         console.error('データ保存エラー:', e);
         updateStatus('データ保存エラー');
+        throw e; // エラーを上位に伝播
     }
 }
 
