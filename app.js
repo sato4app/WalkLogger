@@ -454,25 +454,42 @@ async function clearIndexedDBSilent() {
             db = null;
         }
 
-        // データベースを削除
-        await new Promise((resolve, reject) => {
-            const deleteRequest = indexedDB.deleteDatabase(DB_NAME);
+        // データベースを削除（リトライ付き）
+        let retryCount = 0;
+        const maxRetries = 3;
 
-            deleteRequest.onsuccess = () => {
-                console.log('IndexedDBを削除しました');
-                resolve();
-            };
+        while (retryCount < maxRetries) {
+            try {
+                await new Promise((resolve, reject) => {
+                    const deleteRequest = indexedDB.deleteDatabase(DB_NAME);
 
-            deleteRequest.onerror = () => {
-                console.error('IndexedDB削除エラー:', deleteRequest.error);
-                reject(deleteRequest.error);
-            };
+                    deleteRequest.onsuccess = () => {
+                        console.log('IndexedDBを削除しました');
+                        resolve();
+                    };
 
-            deleteRequest.onblocked = () => {
-                console.warn('IndexedDB削除がブロックされました');
-                reject(new Error('データベースが使用中です'));
-            };
-        });
+                    deleteRequest.onerror = () => {
+                        console.error('IndexedDB削除エラー:', deleteRequest.error);
+                        reject(deleteRequest.error);
+                    };
+
+                    deleteRequest.onblocked = () => {
+                        console.warn(`IndexedDB削除がブロックされました (試行 ${retryCount + 1}/${maxRetries})`);
+                        reject(new Error('データベースが使用中です'));
+                    };
+                });
+                // 成功したらループを抜ける
+                break;
+            } catch (deleteError) {
+                retryCount++;
+                if (retryCount >= maxRetries) {
+                    throw deleteError;
+                }
+                // 少し待ってリトライ
+                console.log(`${200 * retryCount}ms 待機してリトライします...`);
+                await new Promise(resolve => setTimeout(resolve, 200 * retryCount));
+            }
+        }
 
         // 再初期化
         await initIndexedDB();
@@ -889,6 +906,10 @@ async function startTracking() {
             );
 
             if (shouldClear) {
+                // トランザクション完了を確実に待つため少し待機
+                console.log('IndexedDB初期化準備中...');
+                await new Promise(resolve => setTimeout(resolve, 100));
+
                 // IndexedDB初期化
                 await clearIndexedDBSilent();
                 console.log('IndexedDBを初期化しました');
