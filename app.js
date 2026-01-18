@@ -1522,14 +1522,22 @@ async function loadDocument(doc) {
                     if (photoData.storagePath) {
                         console.log(`写真 ${i + 1} をダウンロード中 (storagePath): ${photoData.storagePath}`);
 
-                        // Firebase Storage SDKを使用してダウンロード（CORS回避）
+                        // Firebase Storage SDKを使用してダウンロードURL取得（認証トークン付きURL）
                         const storageRef = storage.ref(photoData.storagePath);
-                        blob = await storageRef.getBlob();
+                        const downloadURL = await storageRef.getDownloadURL();
+                        console.log(`写真 ${i + 1} ダウンロードURL取得: ${downloadURL.substring(0, 100)}...`);
+
+                        // トークン付きURLから画像をダウンロード
+                        const response = await fetch(downloadURL);
+                        if (!response.ok) {
+                            throw new Error(`HTTP error! status: ${response.status}`);
+                        }
+                        blob = await response.blob();
                         console.log(`写真 ${i + 1} ダウンロード完了: ${blob.size} bytes, type: ${blob.type}`);
                     } else if (photoData.url) {
                         console.log(`写真 ${i + 1} をダウンロード中 (URL): ${photoData.url}`);
 
-                        // URLから画像をダウンロード（フォールバック）
+                        // 既存のURLから画像をダウンロード（トークン付きのはず）
                         const response = await fetch(photoData.url);
                         if (!response.ok) {
                             throw new Error(`HTTP error! status: ${response.status}`);
