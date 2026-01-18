@@ -15,6 +15,7 @@ let wakeLock = null; // Wake Lock API用（画面スリープ防止）
 let photosInSession = 0; // セッション中の写真枚数
 let lastRecordedPoint = null; // 最後に記録した位置情報（条件判定用）
 let currentHeading = 0; // 現在の方角（度）
+let firebaseAuthReady = false; // Firebase認証完了フラグ
 
 // IndexedDB関連
 let db = null;
@@ -260,6 +261,25 @@ async function saveToFirebase() {
     try {
         updateStatus('Firebaseに保存中...');
 
+        // 認証状態を確認
+        const currentUser = firebase.auth().currentUser;
+        console.log('Firebase認証状態:', currentUser ? 'ログイン済み' : '未ログイン');
+        if (currentUser) {
+            console.log('ユーザーUID:', currentUser.uid);
+            console.log('匿名ユーザー:', currentUser.isAnonymous);
+        } else {
+            console.error('Firebaseにログインしていません。匿名認証を実行します...');
+            // 匿名認証を試みる
+            try {
+                await firebase.auth().signInAnonymously();
+                console.log('匿名認証成功');
+            } catch (authError) {
+                console.error('匿名認証エラー:', authError);
+                alert('Firebase認証に失敗しました: ' + authError.message);
+                return;
+            }
+        }
+
         // IndexedDBから全データを取得
         const allTracks = await getAllTracks();
         const allPhotos = await getAllPhotos();
@@ -298,15 +318,28 @@ async function saveToFirebase() {
             const photo = allPhotos[i];
 
             try {
+                // アップロード前に認証状態を再確認
+                const authUser = firebase.auth().currentUser;
+                console.log(`写真 ${i + 1} アップロード前の認証状態:`, authUser ? `ログイン済み (UID: ${authUser.uid})` : '未ログイン');
+
+                if (!authUser) {
+                    throw new Error('Firebase認証が切れています。ページを再読み込みしてください。');
+                }
+
                 // Base64をBlobに変換
                 const blob = base64ToBlob(photo.data);
+                console.log(`写真 ${i + 1} Blobサイズ:`, blob.size, 'bytes');
 
                 // Storage パス: projects/{projectName}/photos/{timestamp}.jpg
                 const timestamp = new Date(photo.timestamp).getTime();
                 const photoPath = `projects/${projectName}/photos/${timestamp}.jpg`;
+                console.log(`写真 ${i + 1} アップロードパス:`, photoPath);
+
                 const storageRef = storage.ref(photoPath);
+                console.log(`写真 ${i + 1} Storage参照取得完了`);
 
                 // アップロード
+                console.log(`写真 ${i + 1} アップロード開始...`);
                 await storageRef.put(blob, {
                     contentType: 'image/jpeg',
                     customMetadata: {
@@ -315,6 +348,7 @@ async function saveToFirebase() {
                         lng: photo.location?.lng?.toString() || ''
                     }
                 });
+                console.log(`写真 ${i + 1} アップロード完了`);
 
                 // ダウンロードURLを取得
                 const downloadURL = await storageRef.getDownloadURL();
@@ -1812,6 +1846,20 @@ function handleDeviceOrientation(event) {
 
 // イベントリスナーの設定
 document.addEventListener('DOMContentLoaded', async function() {
+    // Firebase匿名認証を実行
+    try {
+        console.log('Firebase匿名認証を開始...');
+        await firebase.auth().signInAnonymously();
+        const user = firebase.auth().currentUser;
+        console.log('Firebase匿名認証成功 - UID:', user.uid);
+        firebaseAuthReady = true; // 認証完了フラグを設定
+    } catch (authError) {
+        console.error('Firebase匿名認証エラー:', authError);
+        alert('Firebase認証に失敗しました。写真の保存ができない可能性があります。\nエラー: ' + authError.message);
+        firebaseAuthReady = false; // 認証失敗
+        // 認証失敗でもアプリは続行（GPS記録は可能）
+    }
+
     // IndexedDBを初期化
     try {
         await initIndexedDB();
