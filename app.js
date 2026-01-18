@@ -1516,7 +1516,7 @@ async function loadDocument(doc) {
                 const photoData = data.photos[i];
 
                 try {
-                    let blob;
+                    let base64;
 
                     // storagePathがある場合はStorage SDKを使用、なければURLから取得
                     if (photoData.storagePath) {
@@ -1527,43 +1527,75 @@ async function loadDocument(doc) {
                         const downloadURL = await storageRef.getDownloadURL();
                         console.log(`写真 ${i + 1} ダウンロードURL取得: ${downloadURL.substring(0, 100)}...`);
 
-                        // トークン付きURLから画像をダウンロード
-                        const response = await fetch(downloadURL);
-                        if (!response.ok) {
-                            throw new Error(`HTTP error! status: ${response.status}`);
-                        }
-                        blob = await response.blob();
-                        console.log(`写真 ${i + 1} ダウンロード完了: ${blob.size} bytes, type: ${blob.type}`);
+                        // imgタグを使用して画像を読み込み（CORS回避）
+                        base64 = await new Promise((resolve, reject) => {
+                            const img = new Image();
+                            img.crossOrigin = 'anonymous'; // CORS対応
+
+                            img.onload = () => {
+                                try {
+                                    // Canvasで画像をBase64に変換
+                                    const canvas = document.createElement('canvas');
+                                    canvas.width = img.width;
+                                    canvas.height = img.height;
+                                    const ctx = canvas.getContext('2d');
+                                    ctx.drawImage(img, 0, 0);
+                                    const dataURL = canvas.toDataURL('image/jpeg', 0.9);
+                                    console.log(`写真 ${i + 1} Canvas変換完了: ${img.width}x${img.height}`);
+                                    resolve(dataURL);
+                                } catch (canvasError) {
+                                    console.error(`写真 ${i + 1} Canvas変換エラー:`, canvasError);
+                                    reject(canvasError);
+                                }
+                            };
+
+                            img.onerror = (error) => {
+                                console.error(`写真 ${i + 1} 画像読み込みエラー:`, error);
+                                reject(new Error('画像の読み込みに失敗しました'));
+                            };
+
+                            img.src = downloadURL;
+                        });
                     } else if (photoData.url) {
                         console.log(`写真 ${i + 1} をダウンロード中 (URL): ${photoData.url}`);
 
-                        // 既存のURLから画像をダウンロード（トークン付きのはず）
-                        const response = await fetch(photoData.url);
-                        if (!response.ok) {
-                            throw new Error(`HTTP error! status: ${response.status}`);
-                        }
-                        blob = await response.blob();
-                        console.log(`写真 ${i + 1} ダウンロード完了: ${blob.size} bytes, type: ${blob.type}`);
+                        // imgタグを使用して画像を読み込み
+                        base64 = await new Promise((resolve, reject) => {
+                            const img = new Image();
+                            img.crossOrigin = 'anonymous';
+
+                            img.onload = () => {
+                                try {
+                                    const canvas = document.createElement('canvas');
+                                    canvas.width = img.width;
+                                    canvas.height = img.height;
+                                    const ctx = canvas.getContext('2d');
+                                    ctx.drawImage(img, 0, 0);
+                                    const dataURL = canvas.toDataURL('image/jpeg', 0.9);
+                                    console.log(`写真 ${i + 1} Canvas変換完了: ${img.width}x${img.height}`);
+                                    resolve(dataURL);
+                                } catch (canvasError) {
+                                    reject(canvasError);
+                                }
+                            };
+
+                            img.onerror = (error) => {
+                                reject(new Error('画像の読み込みに失敗しました'));
+                            };
+
+                            img.src = photoData.url;
+                        });
                     } else {
                         console.warn(`写真 ${i + 1} のstoragePathとURLが両方とも空です:`, photoData);
                         failCount++;
                         continue;
                     }
 
-                    // BlobをBase64に変換
-                    const base64 = await new Promise((resolve, reject) => {
-                        const reader = new FileReader();
-                            reader.onloadend = () => {
-                                console.log(`写真 ${i + 1} Base64変換完了: ${reader.result ? reader.result.substring(0, 50) + '...' : 'null'}`);
-                                resolve(reader.result);
-                            };
-                            reader.onerror = () => reject(reader.error);
-                            reader.readAsDataURL(blob);
-                        });
+                    if (!base64) {
+                        throw new Error('Base64変換結果が空です');
+                    }
 
-                        if (!base64) {
-                            throw new Error('Base64変換結果が空です');
-                        }
+                    console.log(`写真 ${i + 1} Base64取得完了: ${base64.substring(0, 50)}...`);
 
                         // IndexedDBに保存
                         const photoRecord = {
