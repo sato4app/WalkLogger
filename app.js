@@ -1526,14 +1526,22 @@ async function loadDocument(doc) {
                             throw new Error(`HTTP error! status: ${response.status}`);
                         }
                         const blob = await response.blob();
-                        console.log(`写真 ${i + 1} ダウンロード完了: ${blob.size} bytes`);
+                        console.log(`写真 ${i + 1} ダウンロード完了: ${blob.size} bytes, type: ${blob.type}`);
 
                         // BlobをBase64に変換
-                        const base64 = await new Promise((resolve) => {
+                        const base64 = await new Promise((resolve, reject) => {
                             const reader = new FileReader();
-                            reader.onloadend = () => resolve(reader.result);
+                            reader.onloadend = () => {
+                                console.log(`写真 ${i + 1} Base64変換完了: ${reader.result ? reader.result.substring(0, 50) + '...' : 'null'}`);
+                                resolve(reader.result);
+                            };
+                            reader.onerror = () => reject(reader.error);
                             reader.readAsDataURL(blob);
                         });
+
+                        if (!base64) {
+                            throw new Error('Base64変換結果が空です');
+                        }
 
                         // IndexedDBに保存
                         const photoRecord = {
@@ -1542,24 +1550,41 @@ async function loadDocument(doc) {
                             location: photoData.location
                         };
 
+                        console.log(`写真 ${i + 1} IndexedDBに保存開始:`, {
+                            dataLength: base64.length,
+                            timestamp: photoData.timestamp,
+                            location: photoData.location
+                        });
+
                         const transaction = db.transaction([STORE_PHOTOS], 'readwrite');
                         const store = transaction.objectStore(STORE_PHOTOS);
 
                         await new Promise((resolve, reject) => {
                             const request = store.add(photoRecord);
-                            request.onsuccess = () => resolve();
-                            request.onerror = () => reject(request.error);
+                            request.onsuccess = () => {
+                                console.log(`写真 ${i + 1} IndexedDB保存成功`);
+                                resolve();
+                            };
+                            request.onerror = () => {
+                                console.error(`写真 ${i + 1} IndexedDB保存失敗:`, request.error);
+                                reject(request.error);
+                            };
                         });
 
                         successCount++;
                         console.log(`写真 ${i + 1}/${data.photos.length} をIndexedDBに保存しました`);
                         updateStatus(`写真をダウンロード中... (${i + 1}/${data.photos.length})`);
                     } else {
-                        console.warn(`写真 ${i + 1} のURLが空です`);
+                        console.warn(`写真 ${i + 1} のURLが空です:`, photoData);
                         failCount++;
                     }
                 } catch (downloadError) {
                     console.error(`写真 ${i + 1} のダウンロードエラー:`, downloadError);
+                    console.error(`エラー詳細:`, {
+                        photoData: photoData,
+                        error: downloadError.message,
+                        stack: downloadError.stack
+                    });
                     failCount++;
                     // エラーがあっても続行
                 }
@@ -1569,6 +1594,10 @@ async function loadDocument(doc) {
         } else {
             console.log('写真データがありません');
         }
+
+        // 写真が正しく保存されたか確認
+        const savedPhotos = await getAllPhotos();
+        console.log(`IndexedDB確認: 保存された写真は${savedPhotos.length}件`);
 
         // 写真マーカーを表示（IndexedDBから）
         await displayPhotoMarkers();
