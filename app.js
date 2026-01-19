@@ -258,18 +258,52 @@ async function saveToFirebase() {
         const currentUser = firebase.auth().currentUser;
         console.log('Firebase認証状態:', currentUser ? 'ログイン済み' : '未ログイン');
 
-        const userIdPrefix = currentUser ? currentUser.uid.substring(0, 8) : 'local';
+        const userIdPrefix = currentUser ? currentUser.uid.substring(0, 4) : 'local';
 
         // ドキュメント名のデフォルト値に UID を含める
         const defaultProjectName = `${trackingStartTime}_${userIdPrefix}`;
 
         // ドキュメント名を入力
-        const projectName = await showDocNameDialog(defaultProjectName);
+        let projectName = await showDocNameDialog(defaultProjectName);
         if (!projectName) {
             updateStatus('保存をキャンセルしました');
             return;
         }
 
+        console.log('入力されたプロジェクト名:', projectName);
+
+        // 重複チェック：既存のドキュメントを確認して自動的に連番を付ける
+        const firestoreDb = firebase.firestore();
+        let finalProjectName = projectName;
+        let counter = 2;
+
+        while (true) {
+            const checkRef = firestoreDb.collection('projects').doc(finalProjectName);
+            const existingDoc = await checkRef.get();
+
+            if (!existingDoc.exists) {
+                // 存在しない名前が見つかった
+                break;
+            }
+
+            // 存在する場合は連番を付ける
+            console.log(`プロジェクト名 "${finalProjectName}" は既に存在します。連番を付けます。`);
+            finalProjectName = `${projectName}_${counter}`;
+            counter++;
+
+            // 無限ループ防止（最大100まで）
+            if (counter > 100) {
+                alert('プロジェクト名の連番が100を超えました。別の名前を使用してください。');
+                updateStatus('保存をキャンセルしました');
+                return;
+            }
+        }
+
+        if (finalProjectName !== projectName) {
+            console.log(`プロジェクト名を変更: ${projectName} → ${finalProjectName}`);
+        }
+
+        projectName = finalProjectName;
         console.log('保存するプロジェクト名:', projectName);
 
         if (currentUser) {
@@ -297,9 +331,8 @@ async function saveToFirebase() {
 
         console.log('Firebaseプロジェクト名:', projectName);
 
-        // Firebase StorageとFirestoreの参照を取得
+        // Firebase Storageとプロジェクト参照を取得
         const storage = firebase.storage();
-        const firestoreDb = firebase.firestore();
         const projectRef = firestoreDb.collection('projects').doc(projectName);
 
         // トラック統計を計算
@@ -1409,7 +1442,7 @@ function showDocumentListDialog(documents) {
         docDetails.className = 'document-details';
         const createdAt = doc.data.createdAt?.toDate();
         const dateStr = createdAt ? createdAt.toLocaleString('ja-JP') : '不明';
-        const userId = doc.data.userId ? `UID: ${doc.data.userId.substring(0, 8)}...` : 'UID: 不明';
+        const userId = doc.data.userId ? `UID: ${doc.data.userId.substring(0, 4)}...` : 'UID: 不明';
         docDetails.textContent = `作成日時: ${dateStr} | ${userId} | トラック: ${doc.data.tracksCount || 0}件 | 写真: ${doc.data.photosCount || 0}枚`;
 
         docInfo.appendChild(docName);
