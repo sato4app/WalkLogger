@@ -254,14 +254,12 @@ async function saveToFirebase() {
     try {
         updateStatus('Firebaseに保存中...');
 
-        // 認証状態を確認して UID を取得
+        // 認証状態を確認
         const currentUser = firebase.auth().currentUser;
         console.log('Firebase認証状態:', currentUser ? 'ログイン済み' : '未ログイン');
 
-        const userIdPrefix = currentUser ? currentUser.uid.substring(0, 4) : 'local';
-
-        // ドキュメント名のデフォルト値に UID を含める
-        const defaultProjectName = `${trackingStartTime}_${userIdPrefix}`;
+        // ドキュメント名のデフォルト値（日時のみ）
+        const defaultProjectName = trackingStartTime;
 
         // ドキュメント名を入力
         let projectName = await showDocNameDialog(defaultProjectName);
