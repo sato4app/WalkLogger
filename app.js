@@ -881,6 +881,9 @@ function updatePosition(position) {
             trackingPath.setLatLngs(latlngs);
 
             updateStatus(`GPS追跡中 (${trackingData.length}点記録)`);
+
+            // Sizeダイアログが開いている場合は自動更新
+            updateDataSizeIfOpen();
         }
     }
 }
@@ -1699,6 +1702,95 @@ async function loadDocument(doc) {
         console.error('ドキュメント読み込みエラー:', error);
         alert('データの読み込みに失敗しました: ' + error.message);
         updateStatus('データ読み込みエラー');
+    }
+}
+
+// Sizeダイアログが開いている場合はデータサイズを更新（記録中の自動更新用）
+async function updateDataSizeIfOpen() {
+    const statsDialog = document.getElementById('statsDialog');
+
+    // ダイアログが開いていない場合はスキップ
+    if (!statsDialog || statsDialog.style.display !== 'flex') {
+        return;
+    }
+
+    try {
+        // IndexedDBから全データを取得
+        const allTracks = await getAllTracks();
+        const allPhotos = await getAllPhotos();
+        const trackStats = calculateTrackStats(allTracks);
+
+        // GPSデータサイズを計算
+        let gpsDataSizeBytes = 0;
+        allTracks.forEach(track => {
+            const trackStr = JSON.stringify(track);
+            gpsDataSizeBytes += new Blob([trackStr]).size;
+        });
+
+        // GPSデータサイズを適切な単位で表示（4桁精度）
+        let gpsDataSize;
+        const gpsDataSizeMB = gpsDataSizeBytes / (1024 * 1024);
+        if (gpsDataSizeMB > 10) {
+            gpsDataSize = gpsDataSizeMB.toPrecision(4) + ' MB';
+        } else {
+            const gpsDataSizeKB = gpsDataSizeBytes / 1024;
+            gpsDataSize = gpsDataSizeKB.toPrecision(4) + ' KB';
+        }
+
+        // 写真データのサイズを計算（解像度計算はスキップして高速化）
+        let photosTotalSize = 0;
+        if (allPhotos.length > 0) {
+            allPhotos.forEach(photo => {
+                photosTotalSize += new Blob([photo.data]).size;
+            });
+        }
+
+        // 写真データサイズを適切な単位で表示（4桁精度）
+        let photosDataSize;
+        const photosSizeMB = photosTotalSize / (1024 * 1024);
+        if (photosSizeMB > 10) {
+            photosDataSize = photosSizeMB.toPrecision(4) + ' MB';
+        } else {
+            const photosSizeKB = photosTotalSize / 1024;
+            photosDataSize = photosSizeKB.toPrecision(4) + ' KB';
+        }
+
+        // 既存の解像度を取得（変更しない）
+        const statsBody = document.getElementById('statsBody');
+        const existingResolution = statsBody.querySelector('.stat-row:last-child .stat-value')?.textContent || '-';
+
+        // データサイズ情報のHTMLを生成（解像度は既存の値を使用）
+        const statsHTML = `
+            <div class="stat-section">
+                <div class="stat-row">
+                    <span class="stat-label">トラック:</span>
+                    <span class="stat-value">${trackStats.trackCount}件（位置記録点: ${trackStats.totalPoints}件）</span>
+                </div>
+                <div class="stat-row">
+                    <span class="stat-label">GPSデータサイズ:</span>
+                    <span class="stat-value">${gpsDataSize}</span>
+                </div>
+            </div>
+            <div class="stat-section">
+                <div class="stat-row">
+                    <span class="stat-label">写真撮影枚数:</span>
+                    <span class="stat-value">${allPhotos.length}枚</span>
+                </div>
+                <div class="stat-row">
+                    <span class="stat-label">写真データサイズ:</span>
+                    <span class="stat-value">${photosDataSize}</span>
+                </div>
+                <div class="stat-row">
+                    <span class="stat-label">写真解像度:</span>
+                    <span class="stat-value">${existingResolution}</span>
+                </div>
+            </div>
+        `;
+
+        // ダイアログを更新
+        statsBody.innerHTML = statsHTML;
+    } catch (error) {
+        console.error('データサイズ更新エラー:', error);
     }
 }
 
