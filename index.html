@@ -156,6 +156,29 @@
         </div>
     </div>
 
+    <!-- カメラUIダイアログ -->
+    <div id="cameraDialog" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #000; z-index: 10000;">
+        <!-- カメラプレビュー -->
+        <video id="cameraPreview" autoplay playsinline style="width: 100%; height: 100%; object-fit: cover;"></video>
+
+        <!-- 撮影済み画像 -->
+        <canvas id="capturedCanvas" style="display: none; width: 100%; height: 100%; object-fit: contain;"></canvas>
+
+        <!-- 撮影前のボタン（白丸の撮影ボタン + 戻るボタン） -->
+        <div id="captureButtons" style="position: absolute; bottom: 30px; left: 0; right: 0; display: flex; justify-content: center; align-items: center; gap: 40px;">
+            <button id="cameraCloseBtn" style="width: 50px; height: 50px; border-radius: 50%; background: rgba(255,255,255,0.3); border: 2px solid #fff; color: #fff; font-size: 24px; display: flex; align-items: center; justify-content: center;">×</button>
+            <button id="cameraShutterBtn" style="width: 70px; height: 70px; border-radius: 50%; background: #fff; border: 4px solid rgba(255,255,255,0.5); box-shadow: 0 0 0 4px rgba(0,0,0,0.3);"></button>
+        </div>
+
+        <!-- 撮影後のボタン（左・上・右 + 戻るボタン） -->
+        <div id="directionButtons" style="display: none; position: absolute; bottom: 30px; left: 0; right: 0; display: flex; justify-content: center; align-items: center; gap: 20px;">
+            <button id="dirLeftBtn" class="dir-btn" data-direction="left" style="width: 60px; height: 60px; border-radius: 50%; background: rgba(255,255,255,0.9); border: 2px solid #fff; font-size: 18px; font-weight: bold;">左</button>
+            <button id="dirUpBtn" class="dir-btn" data-direction="up" style="width: 60px; height: 60px; border-radius: 50%; background: rgba(255,255,255,0.9); border: 2px solid #fff; font-size: 18px; font-weight: bold;">上</button>
+            <button id="dirRightBtn" class="dir-btn" data-direction="right" style="width: 60px; height: 60px; border-radius: 50%; background: rgba(255,255,255,0.9); border: 2px solid #fff; font-size: 18px; font-weight: bold;">右</button>
+            <button id="cameraBackBtn" style="width: 50px; height: 50px; border-radius: 50%; background: rgba(255,255,255,0.3); border: 2px solid #fff; color: #fff; font-size: 24px; display: flex; align-items: center; justify-content: center;">×</button>
+        </div>
+    </div>
+
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
     <!-- Firebase SDK (Compat版) -->

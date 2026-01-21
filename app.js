@@ -1219,111 +1219,45 @@ async function saveTrackingData() {
     }
 }
 
-// 写真撮影（MediaStream APIを使用）
+// カメラストリーム（グローバル）
+let cameraStream = null;
+let capturedPhotoData = null;
+
+// 写真撮影（新しいカメラUI）
 async function takePhoto() {
     if (!db) {
         alert('データベースが初期化されていません');
         return;
     }
 
-    const photoBtn = document.getElementById('photoBtn');
-
     try {
-        // ボタンを無効化して視覚的フィードバックを追加
-        photoBtn.disabled = true;
-        photoBtn.style.opacity = '0.5';
         updateStatus('カメラ起動中...');
 
+        // カメラダイアログを表示
+        const cameraDialog = document.getElementById('cameraDialog');
+        const cameraPreview = document.getElementById('cameraPreview');
+        const capturedCanvas = document.getElementById('capturedCanvas');
+        const captureButtons = document.getElementById('captureButtons');
+        const directionButtons = document.getElementById('directionButtons');
+
+        cameraDialog.style.display = 'block';
+        cameraPreview.style.display = 'block';
+        capturedCanvas.style.display = 'none';
+        captureButtons.style.display = 'flex';
+        directionButtons.style.display = 'none';
+
         // カメラにアクセス
-        const stream = await navigator.mediaDevices.getUserMedia({
+        cameraStream = await navigator.mediaDevices.getUserMedia({
             video: {
                 facingMode: 'environment', // 背面カメラを優先
-                width: { ideal: 1280 },
-                height: { ideal: 720 }
+                width: { ideal: 1920 },
+                height: { ideal: 1080 }
             }
         });
 
-        const video = document.getElementById('cameraVideo');
-        const canvas = document.getElementById('photoCanvas');
+        cameraPreview.srcObject = cameraStream;
 
-        video.srcObject = stream;
-
-        // ビデオが準備できるまで待機
-        await new Promise(resolve => {
-            video.onloadedmetadata = () => {
-                resolve();
-            };
-        });
-
-        // 少し待ってから撮影（カメラが安定するまで）
-        await new Promise(resolve => setTimeout(resolve, 500));
-
-        // Canvasに描画
-        canvas.width = video.videoWidth;
-        canvas.height = video.videoHeight;
-        const ctx = canvas.getContext('2d');
-        ctx.drawImage(video, 0, 0);
-
-        // カメラを停止
-        stream.getTracks().forEach(track => track.stop());
-        video.srcObject = null;
-
-        // Base64形式で取得
-        const photoData = canvas.toDataURL('image/jpeg', 0.7);
-
-        // 現在位置を取得
-        const location = currentMarker ? currentMarker.getLatLng() : null;
-
-        // IndexedDBに即座に保存
-        const photoRecord = {
-            data: photoData,
-            timestamp: new Date().toISOString(),
-            location: location ? {
-                lat: parseFloat(location.lat.toFixed(5)),
-                lng: parseFloat(location.lng.toFixed(5))
-            } : null
-        };
-
-        const transaction = db.transaction([STORE_PHOTOS], 'readwrite');
-        const store = transaction.objectStore(STORE_PHOTOS);
-        const request = store.add(photoRecord);
-
-        request.onsuccess = () => {
-            console.log('写真を保存しました。ID:', request.result);
-            photosInSession++; // セッション中の写真枚数をカウント
-
-            // 写真マーカーを追加表示
-            if (location) {
-                const photoIcon = createPhotoIcon();
-                const marker = L.marker([location.lat, location.lng], {
-                    icon: photoIcon,
-                    title: new Date(photoRecord.timestamp).toLocaleString('ja-JP')
-                }).addTo(map);
-
-                // マーカークリック時に写真を表示
-                marker.on('click', () => {
-                    showPhotoFromMarker(photoRecord);
-                });
-
-                photoMarkers.push(marker);
-            }
-
-            updateStatus('写真を保存しました');
-            // 2秒後にステータスを元に戻す
-            setTimeout(() => {
-                if (isTracking) {
-                    updateStatus(`GPS追跡中 (${trackingData.length}点記録)`);
-                } else {
-                    updateStatus('GPS待機中...');
-                }
-            }, 2000);
-        };
-
-        request.onerror = () => {
-            console.error('写真保存エラー:', request.error);
-            updateStatus('写真保存エラー');
-        };
-
+        updateStatus('カメラ準備完了');
     } catch (error) {
         console.error('カメラエラー:', error);
 
@@ -1332,17 +1266,139 @@ async function takePhoto() {
         } else if (error.name === 'NotFoundError') {
             alert('カメラが見つかりません');
         } else {
-            alert('写真撮影に失敗しました: ' + error.message);
+            alert('カメラの起動に失敗しました: ' + error.message);
         }
 
-        updateStatus('写真撮影失敗');
-    } finally {
-        // 必ずボタンを元に戻す
-        photoBtn.disabled = false;
-        photoBtn.style.opacity = '';
-        photoBtn.style.backgroundColor = '';
-        photoBtn.style.color = '';
+        updateStatus('カメラ起動失敗');
     }
+}
+
+// カメラを閉じる（撮影前）
+function closeCameraDialog() {
+    const cameraDialog = document.getElementById('cameraDialog');
+    cameraDialog.style.display = 'none';
+
+    // カメラストリームを停止
+    if (cameraStream) {
+        cameraStream.getTracks().forEach(track => track.stop());
+        cameraStream = null;
+    }
+
+    updateStatus(isTracking ? `GPS追跡中 (${trackingData.length}点記録)` : 'GPS待機中...');
+}
+
+// 写真を撮影（シャッターボタン）
+function capturePhoto() {
+    const cameraPreview = document.getElementById('cameraPreview');
+    const capturedCanvas = document.getElementById('capturedCanvas');
+    const captureButtons = document.getElementById('captureButtons');
+    const directionButtons = document.getElementById('directionButtons');
+
+    // Canvasに描画
+    capturedCanvas.width = cameraPreview.videoWidth;
+    capturedCanvas.height = cameraPreview.videoHeight;
+    const ctx = capturedCanvas.getContext('2d');
+    ctx.drawImage(cameraPreview, 0, 0);
+
+    // Base64形式で取得
+    capturedPhotoData = capturedCanvas.toDataURL('image/jpeg', 0.85);
+
+    // カメラストリームを停止
+    if (cameraStream) {
+        cameraStream.getTracks().forEach(track => track.stop());
+        cameraStream = null;
+    }
+
+    // UIを切り替え：プレビュー → 撮影済み画像 + 方向ボタン
+    cameraPreview.style.display = 'none';
+    capturedCanvas.style.display = 'block';
+    captureButtons.style.display = 'none';
+    directionButtons.style.display = 'flex';
+
+    updateStatus('方向を選択してください');
+}
+
+// 方向ボタンをクリックして保存
+async function savePhotoWithDirection(direction) {
+    if (!capturedPhotoData) {
+        console.error('撮影データがありません');
+        return;
+    }
+
+    try {
+        // 現在位置を取得
+        const location = currentMarker ? currentMarker.getLatLng() : null;
+
+        // IndexedDBに保存
+        const photoRecord = {
+            data: capturedPhotoData,
+            timestamp: new Date().toISOString(),
+            direction: direction, // 方向情報を追加
+            location: location ? {
+                lat: parseFloat(location.lat.toFixed(5)),
+                lng: parseFloat(location.lng.toFixed(5))
+            } : null
+        };
+
+        const transaction = db.transaction([STORE_PHOTOS], 'readwrite');
+        const store = transaction.objectStore(STORE_PHOTOS);
+
+        await new Promise((resolve, reject) => {
+            const request = store.add(photoRecord);
+            request.onsuccess = () => {
+                console.log('写真を保存しました。ID:', request.result, '方向:', direction);
+                photosInSession++;
+
+                // 写真マーカーを追加表示
+                if (location) {
+                    const photoIcon = createPhotoIcon();
+                    const marker = L.marker([location.lat, location.lng], {
+                        icon: photoIcon,
+                        title: `${new Date(photoRecord.timestamp).toLocaleString('ja-JP')} - ${direction}`
+                    }).addTo(map);
+
+                    // マーカークリック時に写真を表示
+                    marker.on('click', () => {
+                        showPhotoFromMarker(photoRecord);
+                    });
+
+                    photoMarkers.push(marker);
+                }
+
+                resolve();
+            };
+            request.onerror = () => reject(request.error);
+        });
+
+        // ダイアログを閉じる
+        closeCameraDialog();
+
+        updateStatus(`写真を保存しました（方向: ${direction}）`);
+
+        // 2秒後にステータスを元に戻す
+        setTimeout(() => {
+            if (isTracking) {
+                updateStatus(`GPS追跡中 (${trackingData.length}点記録)`);
+            } else {
+                updateStatus('GPS待機中...');
+            }
+        }, 2000);
+
+        // Sizeダイアログが開いている場合は自動更新
+        updateDataSizeIfOpen();
+
+    } catch (error) {
+        console.error('写真保存エラー:', error);
+        alert('写真の保存に失敗しました: ' + error.message);
+    }
+
+    capturedPhotoData = null;
+}
+
+// カメラを閉じる（撮影後）
+function closeCameraAfterCapture() {
+    closeCameraDialog();
+    capturedPhotoData = null;
 }
 
 // ステータス表示を更新
@@ -2199,6 +2255,19 @@ document.addEventListener('DOMContentLoaded', async function() {
     document.getElementById('startBtn').addEventListener('click', startTracking);
     document.getElementById('stopBtn').addEventListener('click', stopTracking);
     document.getElementById('photoBtn').addEventListener('click', takePhoto);
+
+    // カメラUIのボタンイベント
+    document.getElementById('cameraCloseBtn').addEventListener('click', closeCameraDialog);
+    document.getElementById('cameraShutterBtn').addEventListener('click', capturePhoto);
+    document.getElementById('cameraBackBtn').addEventListener('click', closeCameraAfterCapture);
+
+    // 方向ボタンのイベント
+    document.querySelectorAll('.dir-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const direction = btn.dataset.direction;
+            savePhotoWithDirection(direction);
+        });
+    });
 
     // Dataボタンのクリックイベント（パネル表示切り替え）
     document.getElementById('dataBtn').addEventListener('click', function() {
