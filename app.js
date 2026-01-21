@@ -399,6 +399,7 @@ async function saveToFirebase() {
                     url: downloadURL,
                     storagePath: photoPath,
                     timestamp: photo.timestamp,
+                    direction: photo.direction || null, // 方向情報を追加
                     location: formatPositionData(photo.location)
                 });
 
@@ -755,9 +756,10 @@ async function displayPhotoMarkers() {
         allPhotos.forEach((photo, index) => {
             if (photo.location && photo.location.lat && photo.location.lng) {
                 const photoIcon = createPhotoIcon();
+                const directionText = photo.direction ? ` - ${photo.direction}` : '';
                 const marker = L.marker([photo.location.lat, photo.location.lng], {
                     icon: photoIcon,
-                    title: new Date(photo.timestamp).toLocaleString('ja-JP')
+                    title: `${new Date(photo.timestamp).toLocaleString('ja-JP')}${directionText}`
                 }).addTo(map);
 
                 // マーカークリック時に写真を表示
@@ -790,8 +792,9 @@ function showPhotoFromMarker(photo) {
     const location = photo.location
         ? `緯度: ${photo.location.lat.toFixed(5)}, 経度: ${photo.location.lng.toFixed(5)}`
         : '位置情報なし';
+    const direction = photo.direction ? `方向: ${photo.direction}` : '';
 
-    info.innerHTML = `撮影日時: ${timestamp}<br>${location}`;
+    info.innerHTML = `撮影日時: ${timestamp}<br>${location}${direction ? '<br>' + direction : ''}`;
     viewer.style.display = 'flex';
 }
 
@@ -1610,6 +1613,14 @@ async function loadDocument(doc) {
         // IndexedDBをクリア（重複防止）
         await clearIndexedDBSilent();
         console.log('Reload前にIndexedDBをクリアしました');
+        console.log('clearIndexedDBSilent完了後のdb状態:', db ? '初期化済み' : 'null');
+
+        // dbがnullの場合は再初期化
+        if (!db) {
+            console.error('IndexedDBがnullです！再初期化を試みます...');
+            await initIndexedDB();
+            console.log('IndexedDB再初期化完了:', db ? '成功' : '失敗');
+        }
 
         // 地図上の既存データをクリア
         if (trackingPath) {
@@ -1762,10 +1773,11 @@ async function loadDocument(doc) {
 
                     console.log(`写真 ${i + 1} Base64取得完了: ${base64.substring(0, 50)}...`);
 
-                        // IndexedDBに保存
+                        // IndexedDBに保存（direction情報も含める）
                         const photoRecord = {
                             data: base64,
                             timestamp: photoData.timestamp,
+                            direction: photoData.direction || null, // 方向情報を追加
                             location: photoData.location
                         };
 
@@ -1807,16 +1819,26 @@ async function loadDocument(doc) {
             }
 
             console.log(`写真ダウンロード完了: 成功 ${successCount}件、失敗 ${failCount}件`);
+
+            // 写真数の検証
+            const savedPhotos = await getAllPhotos();
+            console.log(`IndexedDB確認: 保存された写真は${savedPhotos.length}件`);
+            console.log(`Firestoreの写真数: ${data.photos.length}件`);
+
+            if (savedPhotos.length !== data.photos.length) {
+                console.error(`⚠️ 写真数の不一致！ Firestore: ${data.photos.length}件, IndexedDB: ${savedPhotos.length}件`);
+                console.error(`不一致の詳細: 成功 ${successCount}件 + 失敗 ${failCount}件 = ${successCount + failCount}件`);
+            } else {
+                console.log(`✅ 写真数が一致: ${savedPhotos.length}件`);
+            }
         } else {
             console.log('写真データがありません');
         }
 
-        // 写真が正しく保存されたか確認
-        const savedPhotos = await getAllPhotos();
-        console.log(`IndexedDB確認: 保存された写真は${savedPhotos.length}件`);
-
         // 写真マーカーを表示（IndexedDBから）
+        console.log('写真マーカーを表示します...');
         await displayPhotoMarkers();
+        console.log(`写真マーカー表示完了: ${photoMarkers.length}個のマーカー`);
 
         // Saveボタンを無効化（Reloadしたデータは再保存不要）
         const saveBtn = document.getElementById('dataSaveBtn');
@@ -1826,8 +1848,13 @@ async function loadDocument(doc) {
         // トラック統計を計算
         const trackStats = data.tracks ? calculateTrackStats(data.tracks) : { trackCount: 0, totalPoints: 0 };
 
+        // IndexedDBから実際に保存された写真数を取得
+        const actualPhotos = await getAllPhotos();
+        const actualPhotoCount = actualPhotos.length;
+        console.log(`最終確認: IndexedDBに保存された写真数 = ${actualPhotoCount}件`);
+
         updateStatus(`データを読み込みました: ${doc.id}`);
-        alert(`データを読み込みました\nドキュメント名: ${doc.id}\nトラック: ${trackStats.trackCount}件（位置記録点: ${trackStats.totalPoints}件）\n写真: ${data.photosCount || 0}枚`);
+        alert(`データを読み込みました\nドキュメント名: ${doc.id}\nトラック: ${trackStats.trackCount}件（位置記録点: ${trackStats.totalPoints}件）\n写真: ${actualPhotoCount}枚`);
 
     } catch (error) {
         console.error('ドキュメント読み込みエラー:', error);
