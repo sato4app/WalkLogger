@@ -395,13 +395,21 @@ async function saveToFirebase() {
                 const downloadURL = await storageRef.getDownloadURL();
 
                 // Firestoreに保存するデータ（URLがある場合のみ追加）
-                formattedPhotos.push({
+                const photoData = {
                     url: downloadURL,
                     storagePath: photoPath,
                     timestamp: photo.timestamp,
                     direction: photo.direction || null, // 方向情報を追加
                     location: formatPositionData(photo.location)
+                };
+
+                console.log(`写真 ${i + 1} Firestore保存データ:`, {
+                    timestamp: photoData.timestamp,
+                    direction: photoData.direction,
+                    hasLocation: !!photoData.location
                 });
+
+                formattedPhotos.push(photoData);
 
                 uploadSuccessCount++;
                 console.log(`写真 ${i + 1}/${allPhotos.length} をアップロードしました: ${downloadURL}`);
@@ -1343,6 +1351,12 @@ async function savePhotoWithDirection(direction) {
             } : null
         };
 
+        console.log('写真レコード作成:', {
+            timestamp: photoRecord.timestamp,
+            direction: photoRecord.direction,
+            location: photoRecord.location
+        });
+
         const transaction = db.transaction([STORE_PHOTOS], 'readwrite');
         const store = transaction.objectStore(STORE_PHOTOS);
 
@@ -1784,6 +1798,7 @@ async function loadDocument(doc) {
                         console.log(`写真 ${i + 1} IndexedDBに保存開始:`, {
                             dataLength: base64.length,
                             timestamp: photoData.timestamp,
+                            direction: photoData.direction,
                             location: photoData.location
                         });
 
