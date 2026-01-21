@@ -812,7 +812,7 @@ function calculateDistance(lat1, lng1, lat2, lng2) {
 }
 
 // GPS位置の更新
-function updatePosition(position) {
+async function updatePosition(position) {
     const lat = position.coords.latitude;
     const lng = position.coords.longitude;
     const accuracy = position.coords.accuracy;
@@ -868,6 +868,17 @@ function updatePosition(position) {
             };
 
             trackingData.push(recordedPoint);
+
+            // リアルタイムでIndexedDBに保存
+            try {
+                if (db) {
+                    await saveTrackingDataRealtime();
+                    console.log(`GPS位置をIndexedDBに保存しました (${trackingData.length}点目)`);
+                }
+            } catch (saveError) {
+                console.error('GPS位置のIndexedDB保存エラー:', saveError);
+                // エラーが発生してもメモリ上には保持されているため、追跡は続行
+            }
 
             // 最後に記録した位置情報を更新
             lastRecordedPoint = {
@@ -957,11 +968,21 @@ async function startTracking() {
 
     // IndexedDBが初期化されているか確認
     console.log('startTracking: db変数の状態:', db ? '初期化済み' : 'null');
+    // dbがnullの場合は自動的に再初期化
     if (!db) {
-        alert('データベースが初期化されていません。ページを再読み込みしてください。');
-        console.error('IndexedDBが未初期化です。db =', db);
-        console.error('typeof db:', typeof db);
-        return;
+        console.warn('IndexedDBが未初期化です。自動的に再初期化します...');
+        try {
+            await initIndexedDB();
+            console.log('IndexedDB再初期化成功');
+
+            if (!db) {
+                throw new Error('IndexedDB初期化後もdb変数がnullです');
+            }
+        } catch (initError) {
+            console.error('IndexedDB初期化エラー:', initError);
+            alert('データベースの初期化に失敗しました。ページを再読み込みしてください。\nエラー: ' + initError.message);
+            return;
+        }
     }
 
     // IndexedDBに既存データがあるか確認
@@ -1104,7 +1125,61 @@ async function stopTracking() {
     }
 }
 
-// トラッキングデータをIndexedDBに保存
+// トラッキングデータをリアルタイムでIndexedDBに保存（記録中の更新用）
+async function saveTrackingDataRealtime() {
+    if (!db) {
+        console.error('データベースが初期化されていません');
+        return;
+    }
+
+    const trackData = {
+        timestamp: trackingStartTime, // セッション開始時刻をキーとして使用
+        points: trackingData,
+        totalPoints: trackingData.length
+    };
+
+    try {
+        const transaction = db.transaction([STORE_TRACKS], 'readwrite');
+        const store = transaction.objectStore(STORE_TRACKS);
+
+        // 既存のトラックデータを更新（または新規追加）
+        await new Promise((resolve, reject) => {
+            // まず既存データを検索
+            const request = store.openCursor();
+            let found = false;
+
+            request.onsuccess = (event) => {
+                const cursor = event.target.result;
+                if (cursor) {
+                    // timestampが一致するデータを探す
+                    if (cursor.value.timestamp === trackingStartTime) {
+                        // 既存データを更新
+                        cursor.update(trackData);
+                        found = true;
+                        resolve();
+                    } else {
+                        cursor.continue();
+                    }
+                } else {
+                    // 既存データが見つからなかった場合は新規追加
+                    if (!found) {
+                        store.add(trackData);
+                    }
+                    resolve();
+                }
+            };
+
+            request.onerror = () => {
+                reject(request.error);
+            };
+        });
+    } catch (error) {
+        console.error('リアルタイムデータ保存エラー:', error);
+        throw error;
+    }
+}
+
+// トラッキングデータをIndexedDBに保存（Stop時の最終保存用）
 async function saveTrackingData() {
     if (!db) {
         console.error('データベースが初期化されていません');
