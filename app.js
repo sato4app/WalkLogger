@@ -579,6 +579,18 @@ async function clearIndexedDBSilent() {
 
         // 再初期化
         await initIndexedDB();
+        console.log('IndexedDB再初期化完了');
+
+        // データが確実に削除されたか確認
+        const tracksAfter = await getAllTracks();
+        const photosAfter = await getAllPhotos();
+        console.log(`削除確認: トラック ${tracksAfter.length}件, 写真 ${photosAfter.length}件`);
+
+        if (tracksAfter.length > 0 || photosAfter.length > 0) {
+            console.error('⚠️ データ削除失敗: トラックまたは写真が残っています');
+        } else {
+            console.log('✅ データ削除成功: すべてのデータが削除されました');
+        }
 
         // 最後の記録地点を復元
         if (lastPosition) {
@@ -847,6 +859,11 @@ async function updatePosition(position) {
     // 座標表示を更新
     updateCoordinates(lat, lng, accuracy);
 
+    // トラッキング中の場合、ステータスを更新（常に現在の記録件数を表示）
+    if (isTracking) {
+        updateStatus(`GPS追跡中 (${trackingData.length}点記録)`);
+    }
+
     // トラッキング中の場合、条件を満たした時のみ記録
     if (isTracking) {
         let shouldRecord = false;
@@ -1006,28 +1023,58 @@ async function startTracking() {
         const trackStats = calculateTrackStats(allTracks);
         console.log('統計計算完了:', trackStats);
 
-        if (allTracks.length > 0 || allPhotos.length > 0) {
-            // 既存データがある場合、初期化するか確認
-            const shouldClear = confirm(
+        // 常に初期化確認ダイアログを表示（データ件数に応じて文言を変更）
+        let confirmMessage;
+        const hasData = (allTracks.length > 0 || allPhotos.length > 0);
+
+        if (hasData) {
+            // データがある場合
+            confirmMessage =
                 `IndexedDBに既存のデータがあります。\n` +
                 `トラック: ${trackStats.trackCount}件（位置記録点: ${trackStats.totalPoints}件）\n` +
                 `写真: ${allPhotos.length}件\n\n` +
                 `データを初期化して新規記録を開始しますか？\n` +
-                `「OK」: データの初期化\n` +
-                `「キャンセル」: データを追記`
-            );
+                `「OK」: データを初期化して新規記録\n` +
+                `「キャンセル」: データを追記`;
+        } else {
+            // データがない場合
+            confirmMessage =
+                `IndexedDBにデータはありません。\n\n` +
+                `新規記録を開始しますか？\n` +
+                `「OK」: 新規記録を開始\n` +
+                `「キャンセル」: キャンセル`;
+        }
 
-            if (shouldClear) {
-                // トランザクション完了を確実に待つため少し待機
+        const shouldClear = confirm(confirmMessage);
+
+        if (shouldClear) {
+            if (hasData) {
+                // データがある場合は初期化
                 console.log('IndexedDB初期化準備中...');
                 await new Promise(resolve => setTimeout(resolve, 100));
+
+                // 地図上のトラックパスをクリア
+                if (trackingPath) {
+                    trackingPath.setLatLngs([]);
+                    console.log('トラックパスをクリアしました');
+                }
+
+                // 地図上の写真マーカーをクリア
+                photoMarkers.forEach(marker => map.removeLayer(marker));
+                photoMarkers = [];
+                console.log(`写真マーカーをクリアしました: ${photoMarkers.length}個削除`);
 
                 // IndexedDB初期化
                 await clearIndexedDBSilent();
                 console.log('IndexedDBを初期化しました');
             } else {
-                console.log('既存データに追記します');
+                // データがない場合は何もしない（そのまま記録開始）
+                console.log('新規記録を開始します');
             }
+        } else {
+            // キャンセルされた場合は終了
+            console.log('記録開始をキャンセルしました');
+            return;
         }
     } catch (error) {
         console.error('データ確認エラー:', error);
@@ -1298,6 +1345,87 @@ function closeCameraDialog() {
     updateStatus(isTracking ? `GPS追跡中 (${trackingData.length}点記録)` : 'GPS待機中...');
 }
 
+// 選択した矢印を画像下部にスタンプとして描画
+async function drawArrowStamp(base64Image, direction) {
+    return new Promise((resolve, reject) => {
+        const img = new Image();
+
+        img.onload = () => {
+            // 新しいCanvasを作成して画像を描画
+            const canvas = document.createElement('canvas');
+            canvas.width = img.width;
+            canvas.height = img.height;
+            const ctx = canvas.getContext('2d');
+
+            // 元の画像を描画
+            ctx.drawImage(img, 0, 0);
+
+            // 矢印スタンプを描画（画像下部中央）
+            const arrowSize = Math.min(img.width, img.height) * 0.15; // 画像サイズの15%
+            const centerX = img.width / 2;
+            const bottomY = img.height - arrowSize * 1.5; // 下部から少し上
+
+            // 白背景の円を描画（スタンプ背景）
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
+            ctx.beginPath();
+            ctx.arc(centerX, bottomY, arrowSize * 0.7, 0, Math.PI * 2);
+            ctx.fill();
+
+            // 縁取り
+            ctx.strokeStyle = 'rgba(0, 0, 0, 0.3)';
+            ctx.lineWidth = 3;
+            ctx.stroke();
+
+            // 矢印を描画
+            ctx.save();
+            ctx.translate(centerX, bottomY);
+
+            // 方向に応じて回転
+            if (direction === 'left') {
+                ctx.rotate(Math.PI / 4); // 45度（左斜め上）
+            } else if (direction === 'right') {
+                ctx.rotate(-Math.PI / 4); // -45度（右斜め上）
+            }
+            // upの場合は回転なし
+
+            // 太い矢印を描画
+            const arrowWidth = arrowSize * 0.5;
+            const arrowHeight = arrowSize * 0.6;
+
+            ctx.strokeStyle = '#333';
+            ctx.lineWidth = arrowSize * 0.12;
+            ctx.lineCap = 'round';
+            ctx.lineJoin = 'round';
+
+            // 矢印の線
+            ctx.beginPath();
+            ctx.moveTo(0, arrowHeight / 2);
+            ctx.lineTo(0, -arrowHeight / 2);
+            ctx.stroke();
+
+            // 矢印の先端
+            ctx.beginPath();
+            ctx.moveTo(-arrowWidth / 2, -arrowHeight / 4);
+            ctx.lineTo(0, -arrowHeight / 2);
+            ctx.lineTo(arrowWidth / 2, -arrowHeight / 4);
+            ctx.stroke();
+
+            ctx.restore();
+
+            // 合成後の画像をBase64として返す
+            const stampedImage = canvas.toDataURL('image/jpeg', 0.85);
+            resolve(stampedImage);
+        };
+
+        img.onerror = (error) => {
+            console.error('画像読み込みエラー:', error);
+            reject(error);
+        };
+
+        img.src = base64Image;
+    });
+}
+
 // 写真を撮影（シャッターボタン）
 function capturePhoto() {
     const cameraPreview = document.getElementById('cameraPreview');
@@ -1337,12 +1465,16 @@ async function savePhotoWithDirection(direction) {
     }
 
     try {
+        // 選択した矢印を画像下部にスタンプとして描画
+        const stampedPhotoData = await drawArrowStamp(capturedPhotoData, direction);
+        console.log('矢印スタンプを画像に合成しました:', direction);
+
         // 現在位置を取得
         const location = currentMarker ? currentMarker.getLatLng() : null;
 
-        // IndexedDBに保存
+        // IndexedDBに保存（スタンプ済みの画像を保存）
         const photoRecord = {
-            data: capturedPhotoData,
+            data: stampedPhotoData,
             timestamp: new Date().toISOString(),
             direction: direction, // 方向情報を追加
             location: location ? {
@@ -1502,6 +1634,11 @@ async function showPhotoList() {
 // 写真一覧を閉じる
 function closePhotoList() {
     document.getElementById('photoListContainer').style.display = 'none';
+
+    // ダイアログを閉じた後、記録中の場合は現在の件数を表示
+    if (isTracking) {
+        updateStatus(`GPS追跡中 (${trackingData.length}点記録)`);
+    }
 }
 
 // 写真を拡大表示
@@ -1532,6 +1669,11 @@ function showPhotoViewer(photo) {
 // 写真ビューアを閉じる
 function closePhotoViewer() {
     document.getElementById('photoViewer').style.display = 'none';
+
+    // ビューアーを閉じた後、記録中の場合は現在の件数を表示
+    if (isTracking) {
+        updateStatus(`GPS追跡中 (${trackingData.length}点記録)`);
+    }
 }
 
 // 保存されたドキュメント一覧を取得して表示（Reloadボタン用）
@@ -1614,6 +1756,11 @@ function showDocumentListDialog(documents) {
 // ドキュメント選択ダイアログを閉じる
 function closeDocumentListDialog() {
     document.getElementById('documentListDialog').style.display = 'none';
+
+    // ダイアログを閉じた後、記録中の場合は現在の件数を表示
+    if (isTracking) {
+        updateStatus(`GPS追跡中 (${trackingData.length}点記録)`);
+    }
 }
 
 // 選択したドキュメントを読み込んで地図に表示
@@ -2198,6 +2345,11 @@ async function showTrackingStats() {
 // 統計ダイアログを閉じる
 function closeStatsDialog() {
     document.getElementById('statsDialog').style.display = 'none';
+
+    // ダイアログを閉じた後、記録中の場合は現在の件数を表示
+    if (isTracking) {
+        updateStatus(`GPS追跡中 (${trackingData.length}点記録)`);
+    }
 }
 
 // ページの可視性が変化した時の処理（Wake Lock再取得用）
