@@ -882,7 +882,9 @@ async function updatePosition(position) {
             );
 
             // 60秒以上経過、または20m以上移動した場合に記録
-            if (elapsedSeconds >= 60 || distance >= 20) {
+            // ただし、距離条件はGPS精度より大きい移動のみ有効とする（誤差による誤記録を防止）
+            const significantMovement = distance >= 20 && distance > accuracy;
+            if (elapsedSeconds >= 60 || significantMovement) {
                 shouldRecord = true;
             }
         }
@@ -1433,14 +1435,39 @@ function capturePhoto() {
     const captureButtons = document.getElementById('captureButtons');
     const directionButtons = document.getElementById('directionButtons');
 
-    // Canvasに描画
-    capturedCanvas.width = cameraPreview.videoWidth;
-    capturedCanvas.height = cameraPreview.videoHeight;
+    // 出力解像度を固定（720x1280px）
+    const targetWidth = 720;
+    const targetHeight = 1280;
+
+    // 元のビデオサイズを取得
+    const srcWidth = cameraPreview.videoWidth;
+    const srcHeight = cameraPreview.videoHeight;
+
+    // アスペクト比を維持しながらリサイズ（中央クロップ）
+    const srcAspect = srcWidth / srcHeight;
+    const targetAspect = targetWidth / targetHeight;
+
+    let cropX = 0, cropY = 0, cropWidth = srcWidth, cropHeight = srcHeight;
+
+    if (srcAspect > targetAspect) {
+        // ソースが横長：左右をクロップ
+        cropWidth = srcHeight * targetAspect;
+        cropX = (srcWidth - cropWidth) / 2;
+    } else {
+        // ソースが縦長：上下をクロップ
+        cropHeight = srcWidth / targetAspect;
+        cropY = (srcHeight - cropHeight) / 2;
+    }
+
+    // Canvasに720x1280で描画
+    capturedCanvas.width = targetWidth;
+    capturedCanvas.height = targetHeight;
     const ctx = capturedCanvas.getContext('2d');
-    ctx.drawImage(cameraPreview, 0, 0);
+    ctx.drawImage(cameraPreview, cropX, cropY, cropWidth, cropHeight, 0, 0, targetWidth, targetHeight);
 
     // Base64形式で取得
     capturedPhotoData = capturedCanvas.toDataURL('image/jpeg', 0.85);
+    console.log(`写真撮影: ${targetWidth}x${targetHeight}px にリサイズ（元: ${srcWidth}x${srcHeight}px）`);
 
     // カメラストリームを停止
     if (cameraStream) {
