@@ -409,11 +409,12 @@ projects/
 ```
 WalkLogger/
 ├── index.html            # メインHTML
-├── app.js                # メインJavaScript（約2,500行）
 ├── styles.css            # スタイルシート
 ├── manifest.json         # PWAマニフェスト
 ├── service-worker.js     # Service Worker
-├── firebase-config.js    # Firebase設定
+├── js/
+│   ├── app-main.js       # メインJavaScript
+│   └── firebase-config.js # Firebase設定
 ├── icons/
 │   ├── icon-180.png
 │   ├── icon-192.png

@@ -102,11 +102,11 @@ export async function takePhoto() {
         const captureButtons = document.getElementById('captureButtons');
         const directionButtons = document.getElementById('directionButtons');
 
-        cameraDialog.style.display = 'block';
-        cameraPreview.style.display = 'block';
-        capturedCanvas.style.display = 'none';
-        captureButtons.style.display = 'flex';
-        directionButtons.style.display = 'none';
+        cameraDialog.classList.remove('hidden');
+        cameraPreview.classList.remove('hidden');
+        capturedCanvas.classList.add('hidden');
+        captureButtons.classList.remove('hidden');
+        directionButtons.classList.add('hidden');
 
         const stream = await navigator.mediaDevices.getUserMedia({
             video: {
@@ -140,7 +140,7 @@ export async function takePhoto() {
  */
 export function closeCameraDialog() {
     const cameraDialog = document.getElementById('cameraDialog');
-    cameraDialog.style.display = 'none';
+    cameraDialog.classList.add('hidden');
 
     if (state.cameraStream) {
         state.cameraStream.getTracks().forEach(track => track.stop());
@@ -189,10 +189,10 @@ export function capturePhoto() {
         state.setCameraStream(null);
     }
 
-    cameraPreview.style.display = 'none';
-    capturedCanvas.style.display = 'block';
-    captureButtons.style.display = 'none';
-    directionButtons.style.display = 'flex';
+    cameraPreview.classList.add('hidden');
+    capturedCanvas.classList.remove('hidden');
+    captureButtons.classList.add('hidden');
+    directionButtons.classList.remove('hidden');
 
     updateStatus('方向を選択してください');
 }

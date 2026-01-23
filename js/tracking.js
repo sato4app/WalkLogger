@@ -6,7 +6,7 @@ import { calculateDistance, formatDateTime } from './utils.js';
 import { initIndexedDB, getAllTracks, getAllPhotos, clearIndexedDBSilent, saveLastPosition, saveTrackingDataRealtime, saveTrackingData } from './db.js';
 import { calculateTrackStats } from './utils.js';
 import { updateCurrentMarker, updateTrackingPath, clearMapData } from './map.js';
-import { updateStatus, updateCoordinates, updateDataSizeIfOpen } from './ui.js';
+import { updateStatus, updateCoordinates, updateDataSizeIfOpen, showClearDataDialog } from './ui.js';
 
 /**
  * Wake Lockを取得（画面スリープ防止）
@@ -207,31 +207,25 @@ export async function startTracking() {
         const trackStats = calculateTrackStats(allTracks);
         const hasData = (allTracks.length > 0 || allPhotos.length > 0);
 
-        let confirmMessage;
         if (hasData) {
             confirmMessage =
                 `IndexedDBに既存のデータがあります。\n` +
                 `トラック: ${trackStats.trackCount}件（位置記録点: ${trackStats.totalPoints}件）\n` +
-                `写真: ${allPhotos.length}件\n\n` +
-                `データを初期化して新規記録を開始しますか？\n` +
-                `「OK」: データを初期化して新規記録\n` +
-                `「キャンセル」: データを追記`;
+                `写真: ${allPhotos.length}件\n\n`;
         } else {
-            confirmMessage =
-                `IndexedDBにデータはありません。\n\n` +
-                `新規記録を開始しますか？\n` +
-                `「OK」: 新規記録を開始\n` +
-                `「キャンセル」: キャンセル`;
+            confirmMessage = `新規記録を開始しますか？`;
         }
 
-        const shouldClear = confirm(confirmMessage);
+        const result = await showClearDataDialog(confirmMessage, hasData);
 
-        if (shouldClear) {
+        if (result === 'init') {
             if (hasData) {
                 clearMapData();
                 await clearIndexedDBSilent();
                 console.log('IndexedDBを初期化しました');
             }
+        } else if (result === 'append') {
+            console.log('既存データに追記します');
         } else {
             console.log('記録開始をキャンセルしました');
             return;

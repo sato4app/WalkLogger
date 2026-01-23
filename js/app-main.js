@@ -125,14 +125,11 @@ function setupEventListeners() {
  */
 function toggleDataPanel() {
     const dataPanel = document.getElementById('dataPanel');
-    const controls = document.getElementById('controls');
 
-    if (dataPanel.style.display === 'none' || dataPanel.style.display === '') {
-        dataPanel.style.display = 'flex';
-        controls.style.display = 'none';
+    if (dataPanel.classList.contains('hidden')) {
+        dataPanel.classList.remove('hidden');
     } else {
-        dataPanel.style.display = 'none';
-        controls.style.display = 'flex';
+        dataPanel.classList.add('hidden');
     }
 }
 
@@ -140,8 +137,8 @@ function toggleDataPanel() {
  * メインコントロールに戻る
  */
 function returnToMainControl() {
-    document.getElementById('dataPanel').style.display = 'none';
-    document.getElementById('controls').style.display = 'flex';
+    const dataPanel = document.getElementById('dataPanel');
+    dataPanel.classList.add('hidden');
 }
 
 /**

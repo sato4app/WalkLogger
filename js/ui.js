@@ -5,6 +5,21 @@ import { getAllTracks, getAllPhotos } from './db.js';
 import { calculateTrackStats, formatDataSize } from './utils.js';
 
 /**
+ * HTML要素の表示・非表示を切り替え
+ * @param {string} elementId - 要素ID
+ * @param {boolean} isVisible - 表示するかどうか
+ */
+function toggleVisibility(elementId, isVisible) {
+    const el = document.getElementById(elementId);
+    if (!el) return;
+    if (isVisible) {
+        el.classList.remove('hidden');
+    } else {
+        el.classList.add('hidden');
+    }
+}
+
+/**
  * ステータス表示を更新
  * @param {string} message - メッセージ
  */
@@ -34,7 +49,7 @@ export function updateCoordinates(lat, lng, accuracy) {
  */
 export function showDocNameDialog(defaultName) {
     return new Promise((resolve) => {
-        const dialog = document.getElementById('docNameDialog');
+        const dialogId = 'docNameDialog';
         const input = document.getElementById('docNameInput');
         const okBtn = document.getElementById('docNameOkBtn');
         const cancelBtn = document.getElementById('docNameCancelBtn');
@@ -68,10 +83,10 @@ export function showDocNameDialog(defaultName) {
             okBtn.removeEventListener('click', handleOk);
             cancelBtn.removeEventListener('click', handleCancel);
             input.removeEventListener('keypress', handleKeyPress);
-            dialog.style.display = 'none';
+            toggleVisibility(dialogId, false);
         };
 
-        dialog.style.display = 'flex';
+        toggleVisibility(dialogId, true);
         input.focus();
         input.select();
     });
@@ -82,7 +97,6 @@ export function showDocNameDialog(defaultName) {
  * @param {Object} photo - 写真データ
  */
 export function showPhotoFromMarker(photo) {
-    const viewer = document.getElementById('photoViewer');
     const img = document.getElementById('viewerImage');
     const info = document.getElementById('photoInfo');
 
@@ -95,7 +109,7 @@ export function showPhotoFromMarker(photo) {
     const direction = photo.direction ? `方向: ${photo.direction}` : '';
 
     info.innerHTML = `撮影日時: ${timestamp}<br>${location}${direction ? '<br>' + direction : ''}`;
-    viewer.style.display = 'flex';
+    toggleVisibility('photoViewer', true);
 }
 
 /**
@@ -107,7 +121,6 @@ export async function showPhotoList() {
         return;
     }
 
-    const photoListContainer = document.getElementById('photoListContainer');
     const photoGrid = document.getElementById('photoGrid');
     photoGrid.innerHTML = '';
 
@@ -118,26 +131,20 @@ export async function showPhotoList() {
             photoGrid.innerHTML = '<p style="grid-column: 1/-1; text-align: center; padding: 40px; color: #666;">保存された写真がありません</p>';
         } else {
             photos.forEach(photo => {
-                const thumbnail = document.createElement('div');
-                thumbnail.className = 'photo-thumbnail';
+                const item = document.createElement('div');
+                item.className = 'photo-item';
 
                 const img = document.createElement('img');
                 img.src = photo.data;
                 img.alt = '写真';
 
-                const timestamp = document.createElement('div');
-                timestamp.className = 'photo-timestamp';
-                timestamp.textContent = new Date(photo.timestamp).toLocaleString('ja-JP');
-
-                thumbnail.appendChild(img);
-                thumbnail.appendChild(timestamp);
-
-                thumbnail.addEventListener('click', () => showPhotoViewer(photo));
-                photoGrid.appendChild(thumbnail);
+                item.appendChild(img);
+                item.addEventListener('click', () => showPhotoViewer(photo));
+                photoGrid.appendChild(item);
             });
         }
 
-        photoListContainer.style.display = 'block';
+        toggleVisibility('photoListContainer', true);
     } catch (error) {
         console.error('写真一覧表示エラー:', error);
         alert('写真一覧の表示に失敗しました');
@@ -148,7 +155,7 @@ export async function showPhotoList() {
  * 写真一覧を閉じる
  */
 export function closePhotoList() {
-    document.getElementById('photoListContainer').style.display = 'none';
+    toggleVisibility('photoListContainer', false);
     if (state.isTracking) {
         updateStatus(`GPS追跡中 (${state.trackingData.length}点記録)`);
     }
@@ -159,7 +166,6 @@ export function closePhotoList() {
  * @param {Object} photo - 写真データ
  */
 export function showPhotoViewer(photo) {
-    const viewer = document.getElementById('photoViewer');
     const viewerImage = document.getElementById('viewerImage');
     const photoInfo = document.getElementById('photoInfo');
 
@@ -173,14 +179,14 @@ export function showPhotoViewer(photo) {
     }
 
     photoInfo.innerHTML = infoHTML;
-    viewer.style.display = 'flex';
+    toggleVisibility('photoViewer', true);
 }
 
 /**
  * 写真ビューアを閉じる
  */
 export function closePhotoViewer() {
-    document.getElementById('photoViewer').style.display = 'none';
+    toggleVisibility('photoViewer', false);
     if (state.isTracking) {
         updateStatus(`GPS追跡中 (${state.trackingData.length}点記録)`);
     }
@@ -197,43 +203,39 @@ export function showDocumentListDialog(documents, onLoad) {
 
     documents.forEach(doc => {
         const docItem = document.createElement('div');
-        docItem.className = 'document-item';
+        docItem.className = 'doc-item';
 
-        const docInfo = document.createElement('div');
-        docInfo.className = 'document-info';
+        const title = document.createElement('div');
+        title.className = 'doc-item-title';
+        title.textContent = doc.id;
 
-        const docName = document.createElement('div');
-        docName.className = 'document-name';
-        docName.textContent = doc.id;
-
-        const docDetails = document.createElement('div');
-        docDetails.className = 'document-details';
+        const meta = document.createElement('div');
+        meta.className = 'doc-item-meta';
         const createdAt = doc.data.createdAt?.toDate();
         const dateStr = createdAt ? createdAt.toLocaleString('ja-JP') : '不明';
-        const userId = doc.data.userId ? `UID: ${doc.data.userId.substring(0, 4)}...` : 'UID: 不明';
-        docDetails.textContent = `作成日時: ${dateStr} | ${userId} | トラック: ${doc.data.tracksCount || 0}件 | 写真: ${doc.data.photosCount || 0}枚`;
+        const userId = doc.data.userId ? `UID: ...${doc.data.userId.slice(-4)}` : 'UID: 不明';
+        meta.textContent = `${dateStr} | ${userId}`;
 
-        docInfo.appendChild(docName);
-        docInfo.appendChild(docDetails);
+        const stats = document.createElement('div');
+        stats.className = 'doc-item-meta';
+        stats.textContent = `トラック: ${doc.data.tracksCount || 0} | 写真: ${doc.data.photosCount || 0}`;
 
-        const loadBtn = document.createElement('button');
-        loadBtn.className = 'document-load-btn';
-        loadBtn.textContent = '読み込み';
-        loadBtn.onclick = () => onLoad(doc);
+        docItem.appendChild(title);
+        docItem.appendChild(meta);
+        docItem.appendChild(stats);
 
-        docItem.appendChild(docInfo);
-        docItem.appendChild(loadBtn);
+        docItem.onclick = () => onLoad(doc);
         documentList.appendChild(docItem);
     });
 
-    document.getElementById('documentListDialog').style.display = 'flex';
+    toggleVisibility('documentListDialog', true);
 }
 
 /**
  * ドキュメント選択ダイアログを閉じる
  */
 export function closeDocumentListDialog() {
-    document.getElementById('documentListDialog').style.display = 'none';
+    toggleVisibility('documentListDialog', false);
     if (state.isTracking) {
         updateStatus(`GPS追跡中 (${state.trackingData.length}点記録)`);
     }
@@ -281,31 +283,31 @@ export async function showDataSize() {
             <div class="stat-section">
                 <div class="stat-row">
                     <span class="stat-label">トラック:</span>
-                    <span class="stat-value">${trackStats.trackCount}件（位置記録点: ${trackStats.totalPoints}件）</span>
+                    <span class="stat-value">${trackStats.trackCount}件 (${trackStats.totalPoints}点)</span>
                 </div>
                 <div class="stat-row">
-                    <span class="stat-label">GPSデータサイズ:</span>
+                    <span class="stat-label">GPSサイズ:</span>
                     <span class="stat-value">${formatDataSize(gpsDataSizeBytes)}</span>
                 </div>
             </div>
             <div class="stat-section">
                 <div class="stat-row">
-                    <span class="stat-label">写真撮影枚数:</span>
+                    <span class="stat-label">写真:</span>
                     <span class="stat-value">${allPhotos.length}枚</span>
                 </div>
                 <div class="stat-row">
-                    <span class="stat-label">写真データサイズ:</span>
+                    <span class="stat-label">写真サイズ:</span>
                     <span class="stat-value">${formatDataSize(photosTotalSize)}</span>
                 </div>
                 <div class="stat-row">
-                    <span class="stat-label">写真解像度:</span>
+                    <span class="stat-label">解像度:</span>
                     <span class="stat-value">${photosResolution}</span>
                 </div>
             </div>
         `;
 
         document.getElementById('statsBody').innerHTML = statsHTML;
-        document.getElementById('statsDialog').style.display = 'flex';
+        toggleVisibility('statsDialog', true);
         updateStatus('データサイズ表示完了');
     } catch (error) {
         console.error('データサイズ取得エラー:', error);
@@ -319,65 +321,75 @@ export async function showDataSize() {
  */
 export async function updateDataSizeIfOpen() {
     const statsDialog = document.getElementById('statsDialog');
-    if (!statsDialog || statsDialog.style.display !== 'flex') return;
+    if (!statsDialog || statsDialog.classList.contains('hidden')) return;
 
-    try {
-        const allTracks = await getAllTracks();
-        const allPhotos = await getAllPhotos();
-        const trackStats = calculateTrackStats(allTracks);
-
-        let gpsDataSizeBytes = 0;
-        allTracks.forEach(track => {
-            gpsDataSizeBytes += new Blob([JSON.stringify(track)]).size;
-        });
-
-        let photosTotalSize = 0;
-        allPhotos.forEach(photo => {
-            photosTotalSize += new Blob([photo.data]).size;
-        });
-
-        const statsBody = document.getElementById('statsBody');
-        const existingResolution = statsBody.querySelector('.stat-row:last-child .stat-value')?.textContent || '-';
-
-        const statsHTML = `
-            <div class="stat-section">
-                <div class="stat-row">
-                    <span class="stat-label">トラック:</span>
-                    <span class="stat-value">${trackStats.trackCount}件（位置記録点: ${trackStats.totalPoints}件）</span>
-                </div>
-                <div class="stat-row">
-                    <span class="stat-label">GPSデータサイズ:</span>
-                    <span class="stat-value">${formatDataSize(gpsDataSizeBytes)}</span>
-                </div>
-            </div>
-            <div class="stat-section">
-                <div class="stat-row">
-                    <span class="stat-label">写真撮影枚数:</span>
-                    <span class="stat-value">${allPhotos.length}枚</span>
-                </div>
-                <div class="stat-row">
-                    <span class="stat-label">写真データサイズ:</span>
-                    <span class="stat-value">${formatDataSize(photosTotalSize)}</span>
-                </div>
-                <div class="stat-row">
-                    <span class="stat-label">写真解像度:</span>
-                    <span class="stat-value">${existingResolution}</span>
-                </div>
-            </div>
-        `;
-
-        statsBody.innerHTML = statsHTML;
-    } catch (error) {
-        console.error('データサイズ更新エラー:', error);
-    }
+    // showDataSizeを再利用（簡略化のため）
+    await showDataSize();
 }
 
 /**
  * 統計ダイアログを閉じる
  */
 export function closeStatsDialog() {
-    document.getElementById('statsDialog').style.display = 'none';
+    toggleVisibility('statsDialog', false);
     if (state.isTracking) {
         updateStatus(`GPS追跡中 (${state.trackingData.length}点記録)`);
     }
+}
+
+/**
+ * 既存データ確認ダイアログを表示
+ * @param {string} message - メッセージ
+ * @param {boolean} hasData - 既存データがあるかどうか
+ * @returns {Promise<string>} 'init', 'append', 'cancel'
+ */
+export function showClearDataDialog(message, hasData) {
+    return new Promise((resolve) => {
+        const dialogId = 'clearDataDialog';
+        const body = document.getElementById('clearDataBody');
+        const initBtn = document.getElementById('clearDataInitBtn');
+        const appendBtn = document.getElementById('clearDataAppendBtn');
+        const title = document.querySelector('#clearDataDialog h2');
+
+        body.innerText = message;
+
+        if (hasData) {
+            title.textContent = 'Existing Data Found';
+            initBtn.textContent = 'Start New (Clear Data)';
+            initBtn.classList.add('danger-btn');
+            appendBtn.textContent = 'Continue (Append)';
+            appendBtn.style.display = 'block';
+        } else {
+            title.textContent = 'Start Recording';
+            initBtn.textContent = 'Start';
+            initBtn.classList.remove('danger-btn');
+            appendBtn.textContent = 'Cancel';
+            appendBtn.style.display = 'block';
+        }
+
+        const handleInit = () => {
+            cleanup();
+            resolve('init');
+        };
+
+        const handleAppend = () => {
+            cleanup();
+            if (hasData) {
+                resolve('append');
+            } else {
+                resolve('cancel');
+            }
+        };
+
+        initBtn.onclick = handleInit;
+        appendBtn.onclick = handleAppend;
+
+        const cleanup = () => {
+            initBtn.onclick = null;
+            appendBtn.onclick = null;
+            toggleVisibility(dialogId, false);
+        };
+
+        toggleVisibility(dialogId, true);
+    });
 }
