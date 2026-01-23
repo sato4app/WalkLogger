@@ -1,0 +1,332 @@
+// WalkLogger - Firebase操作
+
+import { STORE_TRACKS, STORE_PHOTOS } from './config.js';
+import * as state from './state.js';
+import { formatPositionData, base64ToBlob, calculateTrackStats } from './utils.js';
+import { getAllTracks, getAllPhotos, getLastPosition, initIndexedDB, clearIndexedDBSilent } from './db.js';
+import { clearMapData, updateTrackingPath, updateCurrentMarker, createArrowIcon, createPhotoIcon, displayPhotoMarkers } from './map.js';
+import { updateStatus, showDocNameDialog, showDocumentListDialog, showPhotoFromMarker } from './ui.js';
+
+/**
+ * IndexedDBのデータをFirebaseに保存
+ */
+export async function saveToFirebase() {
+    if (!state.trackingStartTime) {
+        alert('追跡データがありません。先にGPS追跡を開始してください。');
+        return;
+    }
+
+    try {
+        updateStatus('Firebaseに保存中...');
+
+        const currentUser = firebase.auth().currentUser;
+        console.log('Firebase認証状態:', currentUser ? 'ログイン済み' : '未ログイン');
+
+        let projectName = await showDocNameDialog(state.trackingStartTime);
+        if (!projectName) {
+            updateStatus('保存をキャンセルしました');
+            return;
+        }
+
+        // 重複チェック
+        const firestoreDb = firebase.firestore();
+        let finalProjectName = projectName;
+        let counter = 2;
+
+        while (true) {
+            const checkRef = firestoreDb.collection('projects').doc(finalProjectName);
+            const existingDoc = await checkRef.get();
+
+            if (!existingDoc.exists) break;
+
+            console.log(`プロジェクト名 "${finalProjectName}" は既に存在します。連番を付けます。`);
+            finalProjectName = `${projectName}_${counter}`;
+            counter++;
+
+            if (counter > 100) {
+                alert('プロジェクト名の連番が100を超えました。別の名前を使用してください。');
+                updateStatus('保存をキャンセルしました');
+                return;
+            }
+        }
+
+        projectName = finalProjectName;
+        console.log('保存するプロジェクト名:', projectName);
+
+        // データ取得
+        const allTracks = await getAllTracks();
+        const allPhotos = await getAllPhotos();
+        const lastPosition = await getLastPosition();
+
+        console.log('取得したデータ:', { tracks: allTracks.length, photos: allPhotos.length });
+
+        const storage = firebase.storage();
+        const projectRef = firestoreDb.collection('projects').doc(projectName);
+
+        // トラックデータ変換
+        const formattedTracks = allTracks.map(track => ({
+            timestamp: track.timestamp,
+            points: track.points.map(point => formatPositionData(point)),
+            totalPoints: track.totalPoints
+        }));
+
+        // 写真アップロード
+        const formattedPhotos = [];
+        let uploadSuccessCount = 0;
+        let uploadFailCount = 0;
+
+        if (!currentUser && allPhotos.length > 0) {
+            console.warn(`認証されていないため、${allPhotos.length}件の写真アップロードをスキップします。`);
+            uploadFailCount = allPhotos.length;
+        } else if (allPhotos.length > 0) {
+            updateStatus(`写真をアップロード中... (0/${allPhotos.length})`);
+
+            for (let i = 0; i < allPhotos.length; i++) {
+                const photo = allPhotos[i];
+
+                try {
+                    const authUser = firebase.auth().currentUser;
+                    if (!authUser) throw new Error('Firebase認証が無効です');
+
+                    const blob = base64ToBlob(photo.data);
+                    const timestamp = new Date(photo.timestamp).getTime();
+                    const photoPath = `projects/${projectName}/photos/${timestamp}.jpg`;
+
+                    const storageRef = storage.ref(photoPath);
+                    await storageRef.put(blob, {
+                        contentType: 'image/jpeg',
+                        customMetadata: {
+                            timestamp: photo.timestamp,
+                            lat: photo.location?.lat?.toString() || '',
+                            lng: photo.location?.lng?.toString() || ''
+                        }
+                    });
+
+                    const downloadURL = await storageRef.getDownloadURL();
+
+                    formattedPhotos.push({
+                        url: downloadURL,
+                        storagePath: photoPath,
+                        timestamp: photo.timestamp,
+                        direction: photo.direction || null,
+                        location: formatPositionData(photo.location)
+                    });
+
+                    uploadSuccessCount++;
+                    updateStatus(`写真をアップロード中... (${i + 1}/${allPhotos.length})`);
+                } catch (uploadError) {
+                    uploadFailCount++;
+                    console.error(`写真 ${i + 1} のアップロードエラー:`, uploadError);
+                }
+            }
+        }
+
+        if (uploadFailCount > 0) {
+            alert(`写真アップロード: ${uploadSuccessCount}件成功、${uploadFailCount}件失敗`);
+        }
+
+        updateStatus('Firestoreに保存中...');
+
+        // プロジェクトデータを保存
+        const projectData = {
+            userId: currentUser ? currentUser.uid : null,
+            startTime: state.trackingStartTime,
+            createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+            lastPosition: formatPositionData(lastPosition),
+            tracks: formattedTracks,
+            photos: formattedPhotos,
+            tracksCount: allTracks.length,
+            photosCount: allPhotos.length
+        };
+
+        await projectRef.set(projectData);
+
+        const trackStats = calculateTrackStats(allTracks);
+        updateStatus('Firebase保存完了');
+        alert(`Firebaseに保存しました\nプロジェクト名: ${projectName}\nトラック: ${trackStats.trackCount}件（位置記録点: ${trackStats.totalPoints}件）\n写真: ${allPhotos.length}件`);
+
+    } catch (error) {
+        console.error('Firebase保存エラー:', error);
+        updateStatus('Firebase保存エラー');
+        alert('Firebaseへの保存に失敗しました: ' + error.message);
+    }
+}
+
+/**
+ * Firebaseからドキュメント一覧を取得して表示
+ */
+export async function reloadFromFirebase() {
+    try {
+        updateStatus('ドキュメント一覧を取得中...');
+
+        const firestoreDb = firebase.firestore();
+        const querySnapshot = await firestoreDb.collection('projects').orderBy('createdAt', 'desc').get();
+
+        if (querySnapshot.empty) {
+            alert('保存されたドキュメントがありません');
+            updateStatus('ドキュメントなし');
+            return;
+        }
+
+        const documents = [];
+        querySnapshot.forEach(doc => {
+            documents.push({ id: doc.id, data: doc.data() });
+        });
+
+        showDocumentListDialog(documents, loadDocument);
+        updateStatus('ドキュメント一覧取得完了');
+    } catch (error) {
+        console.error('ドキュメント取得エラー:', error);
+        alert('ドキュメントの取得に失敗しました: ' + error.message);
+        updateStatus('ドキュメント取得エラー');
+    }
+}
+
+/**
+ * 選択したドキュメントを読み込んで地図に表示
+ * @param {Object} doc - ドキュメント
+ */
+export async function loadDocument(doc) {
+    try {
+        updateStatus('データを読み込み中...');
+        document.getElementById('documentListDialog').style.display = 'none';
+
+        const data = doc.data;
+
+        await clearIndexedDBSilent();
+        console.log('Reload前にIndexedDBをクリアしました');
+
+        if (!state.db) {
+            await initIndexedDB();
+        }
+
+        clearMapData();
+
+        // トラックデータを保存して表示
+        if (data.tracks && data.tracks.length > 0) {
+            const allPoints = [];
+
+            for (const track of data.tracks) {
+                try {
+                    const transaction = state.db.transaction([STORE_TRACKS], 'readwrite');
+                    const store = transaction.objectStore(STORE_TRACKS);
+
+                    await new Promise((resolve, reject) => {
+                        const request = store.add(track);
+                        request.onsuccess = () => resolve();
+                        request.onerror = () => reject(request.error);
+                    });
+
+                    if (track.points) {
+                        track.points.forEach(point => {
+                            allPoints.push([point.lat, point.lng]);
+                        });
+                    }
+                } catch (trackError) {
+                    console.error('トラック保存エラー:', trackError);
+                }
+            }
+
+            if (allPoints.length > 0) {
+                state.trackingPath.setLatLngs(allPoints);
+                state.map.setView(allPoints[0], 15);
+            }
+        }
+
+        // 最終位置マーカーを表示
+        if (data.lastPosition) {
+            updateCurrentMarker(data.lastPosition.lat, data.lastPosition.lng, state.currentHeading);
+        }
+
+        // 写真をダウンロード
+        if (data.photos && data.photos.length > 0) {
+            updateStatus(`写真をダウンロード中... (0/${data.photos.length})`);
+
+            for (let i = 0; i < data.photos.length; i++) {
+                const photoData = data.photos[i];
+
+                try {
+                    let base64;
+
+                    if (photoData.storagePath) {
+                        const storageRef = firebase.storage().ref(photoData.storagePath);
+                        const downloadURL = await storageRef.getDownloadURL();
+
+                        base64 = await new Promise((resolve, reject) => {
+                            const img = new Image();
+                            img.crossOrigin = 'anonymous';
+
+                            img.onload = () => {
+                                const canvas = document.createElement('canvas');
+                                canvas.width = img.width;
+                                canvas.height = img.height;
+                                canvas.getContext('2d').drawImage(img, 0, 0);
+                                resolve(canvas.toDataURL('image/jpeg', 0.9));
+                            };
+
+                            img.onerror = () => reject(new Error('画像の読み込みに失敗しました'));
+                            img.src = downloadURL;
+                        });
+                    } else if (photoData.url) {
+                        base64 = await new Promise((resolve, reject) => {
+                            const img = new Image();
+                            img.crossOrigin = 'anonymous';
+
+                            img.onload = () => {
+                                const canvas = document.createElement('canvas');
+                                canvas.width = img.width;
+                                canvas.height = img.height;
+                                canvas.getContext('2d').drawImage(img, 0, 0);
+                                resolve(canvas.toDataURL('image/jpeg', 0.9));
+                            };
+
+                            img.onerror = () => reject(new Error('画像の読み込みに失敗しました'));
+                            img.src = photoData.url;
+                        });
+                    } else {
+                        continue;
+                    }
+
+                    if (!base64) continue;
+
+                    const photoRecord = {
+                        data: base64,
+                        timestamp: photoData.timestamp,
+                        direction: photoData.direction || null,
+                        location: photoData.location
+                    };
+
+                    const transaction = state.db.transaction([STORE_PHOTOS], 'readwrite');
+                    const store = transaction.objectStore(STORE_PHOTOS);
+
+                    await new Promise((resolve, reject) => {
+                        const request = store.add(photoRecord);
+                        request.onsuccess = () => resolve();
+                        request.onerror = () => reject(request.error);
+                    });
+
+                    updateStatus(`写真をダウンロード中... (${i + 1}/${data.photos.length})`);
+                } catch (downloadError) {
+                    console.error(`写真 ${i + 1} のダウンロードエラー:`, downloadError);
+                }
+            }
+        }
+
+        // 写真マーカーを表示
+        await displayPhotoMarkers(showPhotoFromMarker);
+
+        // Saveボタンを無効化
+        document.getElementById('dataSaveBtn').disabled = true;
+
+        const trackStats = data.tracks ? calculateTrackStats(data.tracks) : { trackCount: 0, totalPoints: 0 };
+        const actualPhotos = await getAllPhotos();
+
+        updateStatus(`データを読み込みました: ${doc.id}`);
+        alert(`データを読み込みました\nドキュメント名: ${doc.id}\nトラック: ${trackStats.trackCount}件（位置記録点: ${trackStats.totalPoints}件）\n写真: ${actualPhotos.length}枚`);
+
+    } catch (error) {
+        console.error('ドキュメント読み込みエラー:', error);
+        alert('データの読み込みに失敗しました: ' + error.message);
+        updateStatus('データ読み込みエラー');
+    }
+}
