@@ -207,6 +207,7 @@ export async function startTracking() {
         const trackStats = calculateTrackStats(allTracks);
         const hasData = (allTracks.length > 0 || allPhotos.length > 0);
 
+        let confirmMessage;
         if (hasData) {
             confirmMessage =
                 `IndexedDBに既存のデータがあります。\n` +
