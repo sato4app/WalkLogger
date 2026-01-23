@@ -246,7 +246,7 @@ export function closeDocumentListDialog() {
  */
 export async function showDataSize() {
     try {
-        updateStatus('データサイズを計算中...');
+        // updateStatus('データサイズを計算中...');
 
         const allTracks = await getAllTracks();
         const allPhotos = await getAllPhotos();
@@ -308,11 +308,11 @@ export async function showDataSize() {
 
         document.getElementById('statsBody').innerHTML = statsHTML;
         toggleVisibility('statsDialog', true);
-        updateStatus('データサイズ表示完了');
+        // updateStatus('データサイズ表示完了'); // Removed to avoid overwriting tracking status
     } catch (error) {
         console.error('データサイズ取得エラー:', error);
         alert('データサイズの取得に失敗しました: ' + error.message);
-        updateStatus('データサイズ取得エラー');
+        // updateStatus('データサイズ取得エラー');
     }
 }
 

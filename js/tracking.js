@@ -115,8 +115,11 @@ export async function updatePosition(position) {
 
             // 60秒以上経過、または20m以上移動した場合に記録
             // ただし、距離条件はGPS精度より大きい移動のみ有効とする
+            // かつ、最低でも5秒は間隔を空ける（高頻度記録防止）
             const significantMovement = distance >= GPS_RECORD_DISTANCE_M && distance > accuracy;
-            if (elapsedSeconds >= GPS_RECORD_INTERVAL_SEC || significantMovement) {
+            const isMinIntervalPassed = elapsedSeconds >= 5;
+
+            if (isMinIntervalPassed && (elapsedSeconds >= GPS_RECORD_INTERVAL_SEC || significantMovement)) {
                 shouldRecord = true;
             }
         }
@@ -131,6 +134,17 @@ export async function updatePosition(position) {
 
             state.addTrackingPoint(recordedPoint);
 
+            // UI更新（DB保存より先に行う）
+            updateTrackingPath(state.trackingData);
+            updateStatus(`GPS追跡中 (${state.trackingData.length}点記録)`);
+            updateDataSizeIfOpen();
+
+            state.setLastRecordedPoint({
+                lat: lat,
+                lng: lng,
+                time: currentTime
+            });
+
             try {
                 if (state.db) {
                     await saveTrackingDataRealtime();
@@ -139,16 +153,16 @@ export async function updatePosition(position) {
             } catch (saveError) {
                 console.error('GPS位置のIndexedDB保存エラー:', saveError);
             }
-
-            state.setLastRecordedPoint({
-                lat: lat,
-                lng: lng,
-                time: currentTime
-            });
-
-            updateTrackingPath(state.trackingData);
-            updateStatus(`GPS追跡中 (${state.trackingData.length}点記録)`);
-            updateDataSizeIfOpen();
+        } else {
+            // 記録しない場合のデバッグログ
+            if (state.lastRecordedPoint) {
+                const elapsedSeconds = (currentTime - state.lastRecordedPoint.time) / 1000;
+                const distance = calculateDistance(
+                    state.lastRecordedPoint.lat, state.lastRecordedPoint.lng,
+                    lat, lng
+                );
+                console.log(`Skip record: Time=${elapsedSeconds.toFixed(1)}s, Dist=${distance.toFixed(1)}m, Acc=${accuracy.toFixed(1)}m`);
+            }
         }
     }
 }

@@ -1,15 +1,19 @@
 /* WalkLogger Premium Styles */
 :root {
-    --primary-color: #05D758; /* Vibrant Green */
-    --accent-color: #2F80ED; /* Vibrant Blue */
-    --danger-color: #FF3B30; /* Vibrant Red */
-    --warning-color: #FF9F0A; /* Vibrant Orange */
+    --primary-color: #05D758;
+    /* Vibrant Green */
+    --accent-color: #2F80ED;
+    /* Vibrant Blue */
+    --danger-color: #FF3B30;
+    /* Vibrant Red */
+    --warning-color: #FF9F0A;
+    /* Vibrant Orange */
     --text-main: #1C1C1E;
     --text-sub: #8E8E93;
     --bg-glass: rgba(255, 255, 255, 0.85);
     --bg-glass-dark: rgba(28, 28, 30, 0.85);
-    --shadow-sm: 0 4px 12px rgba(0,0,0,0.1);
-    --shadow-md: 0 8px 24px rgba(0,0,0,0.15);
+    --shadow-sm: 0 4px 12px rgba(0, 0, 0, 0.1);
+    --shadow-md: 0 8px 24px rgba(0, 0, 0, 0.15);
     --radius-lg: 24px;
     --radius-md: 16px;
     --radius-sm: 12px;
@@ -38,7 +42,9 @@ body {
 }
 
 /* Utility Classes */
-.hidden { display: none !important; }
+.hidden {
+    display: none !important;
+}
 
 /* Status Bar */
 #status {
@@ -46,7 +52,7 @@ body {
     top: env(safe-area-inset-top, 20px);
     left: 50%;
     transform: translateX(-50%);
-    width: 90%;
+    width: 80%;
     max-width: 400px;
     z-index: 100;
 }
@@ -59,7 +65,7 @@ body {
     border-radius: var(--radius-md);
     box-shadow: var(--shadow-sm);
     text-align: center;
-    border: 1px solid rgba(255,255,255,0.5);
+    border: 1px solid rgba(255, 255, 255, 0.5);
 }
 
 #statusText {
@@ -91,11 +97,12 @@ body {
     box-shadow: var(--shadow-md);
     z-index: 100;
     transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
-    border: 1px solid rgba(255,255,255,0.5);
+    border: 1px solid rgba(255, 255, 255, 0.5);
 }
 
 #dataPanel {
-    bottom: 120px; /* Position above controls */
+    bottom: 120px;
+    /* Position above controls */
     opacity: 0;
     transform: translate(-50%, 20px);
     pointer-events: none;
@@ -121,8 +128,14 @@ body {
     min-width: 60px;
 }
 
-.action-btn:active { transform: scale(0.92); }
-.action-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.action-btn:active {
+    transform: scale(0.92);
+}
+
+.action-btn:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
 
 .icon-box {
     width: 50px;
@@ -133,7 +146,7 @@ body {
     justify-content: center;
     color: white;
     font-size: 24px;
-    box-shadow: 0 4px 10px rgba(0,0,0,0.15);
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.15);
     transition: background-color 0.3s;
 }
 
@@ -150,15 +163,37 @@ body {
 }
 
 /* Button Colors */
-.start-icon { background: var(--primary-color); }
-.stop-icon { background: var(--danger-color); }
-.photo-icon { background: var(--accent-color); }
-.data-icon { background: #8E44AD; }
+.start-icon {
+    background: var(--primary-color);
+}
 
-.list-icon { background: #FF9500; }
-.size-icon { background: #30B0C7; }
-.save-icon { background: var(--primary-color); }
-.reload-icon { background: #5856D6; }
+.stop-icon {
+    background: var(--danger-color);
+}
+
+.photo-icon {
+    background: var(--accent-color);
+}
+
+.data-icon {
+    background: #8E44AD;
+}
+
+.list-icon {
+    background: #FF9500;
+}
+
+.size-icon {
+    background: #30B0C7;
+}
+
+.save-icon {
+    background: var(--primary-color);
+}
+
+.reload-icon {
+    background: #5856D6;
+}
 
 /* Dialogs */
 .modal-dialog {
@@ -167,7 +202,7 @@ body {
     left: 0;
     width: 100%;
     height: 100%;
-    background: rgba(0,0,0,0.4);
+    background: rgba(0, 0, 0, 0.4);
     backdrop-filter: blur(4px);
     z-index: 2000;
     display: flex;
@@ -194,8 +229,15 @@ body {
 }
 
 @keyframes slideUp {
-    from { transform: translateY(20px); opacity: 0; }
-    to { transform: translateY(0); opacity: 1; }
+    from {
+        transform: translateY(20px);
+        opacity: 0;
+    }
+
+    to {
+        transform: translateY(0);
+        opacity: 1;
+    }
 }
 
 .modal-content h2 {
@@ -216,10 +258,13 @@ body {
     transition: border-color 0.2s;
 }
 
-.text-input:focus { border-color: var(--accent-color); }
+.text-input:focus {
+    border-color: var(--accent-color);
+}
 
 /* Standard Buttons */
-.primary-btn, .secondary-btn {
+.primary-btn,
+.secondary-btn {
     padding: 12px 24px;
     border-radius: var(--radius-md);
     border: none;
@@ -229,12 +274,30 @@ body {
     flex: 1;
 }
 
-.primary-btn { background: var(--text-main); color: white; }
-.secondary-btn { background: #E5E5EA; color: var(--text-main); }
-.danger-btn { background: var(--danger-color); color: white; }
+.primary-btn {
+    background: var(--text-main);
+    color: white;
+}
 
-.modal-actions { display: flex; gap: 12px; margin-top: 24px; }
-.column-actions { flex-direction: column; }
+.secondary-btn {
+    background: #E5E5EA;
+    color: var(--text-main);
+}
+
+.danger-btn {
+    background: var(--danger-color);
+    color: white;
+}
+
+.modal-actions {
+    display: flex;
+    gap: 12px;
+    margin-top: 24px;
+}
+
+.column-actions {
+    flex-direction: column;
+}
 
 /* Full Screen Dialogs */
 .full-screen-dialog {
@@ -255,7 +318,7 @@ body {
     align-items: center;
     justify-content: space-between;
     border-bottom: 1px solid #f0f0f0;
-    background: rgba(255,255,255,0.9);
+    background: rgba(255, 255, 255, 0.9);
     position: sticky;
     top: 0;
 }
@@ -297,10 +360,15 @@ body {
     transition: transform 0.3s;
 }
 
-.photo-item:active img { transform: scale(0.95); }
+.photo-item:active img {
+    transform: scale(0.95);
+}
 
 /* Photo Viewer */
-.dark-mode { background: #000; color: white; }
+.dark-mode {
+    background: #000;
+    color: white;
+}
 
 .viewer-content {
     flex: 1;
@@ -315,13 +383,13 @@ body {
     max-width: 100%;
     max-height: 70vh;
     border-radius: 8px;
-    box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
 }
 
 #photoInfo {
     margin-top: 20px;
     text-align: center;
-    color: rgba(255,255,255,0.7);
+    color: rgba(255, 255, 255, 0.7);
     font-size: 13px;
     line-height: 1.5;
 }
@@ -330,12 +398,14 @@ body {
     position: absolute;
     top: 20px;
     right: 20px;
-    background: rgba(255,255,255,0.2);
+    background: rgba(255, 255, 255, 0.2);
     color: white;
 }
 
 /* Camera UI */
-.camera-mode { background: #000; }
+.camera-mode {
+    background: #000;
+}
 
 #cameraPreview {
     width: 100%;
@@ -359,20 +429,22 @@ body {
     height: 72px;
     border-radius: 50%;
     background: white;
-    border: 4px solid rgba(0,0,0,0.1);
+    border: 4px solid rgba(0, 0, 0, 0.1);
     box-shadow: 0 0 0 4px white;
     cursor: pointer;
     transition: transform 0.1s;
 }
 
-.shutter-btn:active { transform: scale(0.9); }
+.shutter-btn:active {
+    transform: scale(0.9);
+}
 
 .camera-close-btn {
     color: white;
     background: none;
     border: none;
     font-size: 16px;
-    text-shadow: 0 1px 2px rgba(0,0,0,0.5);
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
     cursor: pointer;
 }
 
@@ -380,7 +452,7 @@ body {
     color: white;
     font-size: 16px;
     font-weight: 600;
-    text-shadow: 0 1px 4px rgba(0,0,0,0.5);
+    text-shadow: 0 1px 4px rgba(0, 0, 0, 0.5);
 }
 
 .direction-row {
@@ -392,13 +464,13 @@ body {
     width: 60px;
     height: 60px;
     border-radius: 50%;
-    background: rgba(255,255,255,0.9);
+    background: rgba(255, 255, 255, 0.9);
     border: none;
     display: flex;
     align-items: center;
     justify-content: center;
     cursor: pointer;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
 }
 
 .dir-btn svg {
@@ -409,8 +481,13 @@ body {
     fill: none;
 }
 
-#dirLeftBtn svg { transform: rotate(45deg); }
-#dirRightBtn svg { transform: rotate(-45deg); }
+#dirLeftBtn svg {
+    transform: rotate(45deg);
+}
+
+#dirRightBtn svg {
+    transform: rotate(-45deg);
+}
 
 /* Document List */
 .list-container {
@@ -426,13 +503,24 @@ body {
     text-align: left;
     cursor: pointer;
 }
-.doc-item:hover { background: #f9f9f9; }
-.doc-item-title { font-weight: 600; font-size: 14px; }
-.doc-item-meta { font-size: 12px; color: var(--text-sub); }
+
+.doc-item:hover {
+    background: #f9f9f9;
+}
+
+.doc-item-title {
+    font-weight: 600;
+    font-size: 14px;
+}
+
+.doc-item-meta {
+    font-size: 12px;
+    color: var(--text-sub);
+}
 
 /* Markers */
 .current-location-marker {
-    filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3));
+    filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.3));
     z-index: 1000 !important;
 }
 
@@ -442,5 +530,5 @@ body {
     background: #FF9F0A;
     border: 2px solid white;
     border-radius: 50%;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.25);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.25);
 }
