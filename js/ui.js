@@ -351,6 +351,12 @@ export function showClearDataDialog(message, hasData) {
         const appendBtn = document.getElementById('clearDataAppendBtn');
         const title = document.querySelector('#clearDataDialog h2');
 
+        if (!body || !initBtn || !appendBtn || !title) {
+            console.error('showClearDataDialog: 必要なDOM要素が見つかりません');
+            resolve('cancel');
+            return;
+        }
+
         body.innerText = message;
 
         if (hasData) {

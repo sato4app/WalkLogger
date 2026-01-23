@@ -232,7 +232,7 @@ export async function startTracking() {
         }
     } catch (error) {
         console.error('データ確認エラー:', error);
-        alert('データ確認中にエラーが発生しました。ページを再読み込みしてください。');
+        alert('データ確認中にエラーが発生しました: ' + error.message + '\nページを再読み込みしてください。');
         return;
     }
 
