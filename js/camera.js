@@ -45,9 +45,9 @@ export async function drawArrowStamp(base64Image, direction) {
             ctx.translate(centerX, bottomY);
 
             if (direction === 'left') {
-                ctx.rotate(Math.PI / 4);
-            } else if (direction === 'right') {
                 ctx.rotate(-Math.PI / 4);
+            } else if (direction === 'right') {
+                ctx.rotate(Math.PI / 4);
             }
 
             const arrowWidth = arrowSize * 0.5;

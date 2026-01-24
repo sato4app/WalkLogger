@@ -112,6 +112,11 @@ export async function updatePosition(position) {
     updateCurrentMarker(lat, lng, state.currentHeading);
     updateCoordinates(lat, lng, accuracy, currentDist, currentTimeDiff);
 
+    // 記録中は地図を現在地に追従
+    if (state.isTracking && state.map) {
+        state.map.panTo([lat, lng], { animate: true });
+    }
+
     if (state.isTracking) {
         let shouldRecord = false;
 
