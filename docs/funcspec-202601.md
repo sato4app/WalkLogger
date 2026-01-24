@@ -1,7 +1,7 @@
 # WalkLogger 機能仕様書
 
 **バージョン:** 202601
-**最終更新日:** 2026年1月22日
+**最終更新日:** 2026年1月24日
 
 ---
 
@@ -109,7 +109,7 @@ WalkLogger - GPS位置記録
 #### 3.2.2 写真データ形式
 ```javascript
 {
-    data: string,      // Base64形式の画像データ（JPEG、品質0.85）
+    data: string,      // Base64形式の画像データ（JPEG、品質0.6）
     timestamp: string, // ISO 8601形式
     direction: string, // "left" | "up" | "right"
     location: {
@@ -201,7 +201,7 @@ WalkLogger - GPS位置記録
 | 項目 | 値 |
 |------|-----|
 | データベース名 | WalkLoggerDB |
-| バージョン | 1 |
+| バージョン | 2 |
 
 #### 4.1.2 オブジェクトストア
 | ストア名 | キー | インデックス | 用途 |
@@ -282,9 +282,10 @@ projects/
 
 #### 5.1.1 キャッシュ対象
 - `./index.html`
-- `./app.js`
 - `./styles.css`
 - `./manifest.json`
+- `./js/firebase-config.js`
+- `./js/app-main.js`（およびESモジュール群）
 - Leaflet CSS/JS（CDN）
 
 #### 5.1.2 キャッシュ戦略
@@ -294,7 +295,7 @@ projects/
 | その他リソース | キャッシュ優先（キャッシュミス時はネットワーク取得後キャッシュ） |
 
 #### 5.1.3 キャッシュバージョン
-- 現在: `walklogger-v2`
+- 現在: `walklogger-v4`
 - アップデート時は古いキャッシュを自動削除
 
 ### 5.2 Web App Manifest
@@ -408,20 +409,47 @@ projects/
 
 ```
 WalkLogger/
-├── index.html            # メインHTML
-├── styles.css            # スタイルシート
-├── manifest.json         # PWAマニフェスト
-├── service-worker.js     # Service Worker
-├── js/
-│   ├── app-main.js       # メインJavaScript
-│   └── firebase-config.js # Firebase設定
+├── index.html              # メインHTML
+├── styles.css              # スタイルシート
+├── manifest.json           # PWAマニフェスト
+├── service-worker.js       # Service Worker
+├── js/                     # JavaScriptモジュール（ES6）
+│   ├── app-main.js         # メイン初期化・イベント設定
+│   ├── config.js           # 定数・設定値
+│   ├── state.js            # グローバル状態管理
+│   ├── utils.js            # ユーティリティ関数
+│   ├── db.js               # IndexedDB操作
+│   ├── map.js              # 地図表示・マーカー管理
+│   ├── tracking.js         # GPS追跡・位置更新
+│   ├── camera.js           # カメラ・写真撮影
+│   ├── firebase-ops.js     # Firebase操作
+│   ├── ui.js               # UI・ダイアログ管理
+│   ├── firebase-config.js  # Firebase設定
+│   └── firebase-config.template.js  # Firebase設定テンプレート
 ├── icons/
 │   ├── icon-180.png
 │   ├── icon-192.png
 │   └── icon-512.png
 └── docs/
-    └── funcspec-202601.md  # 本仕様書
+    ├── funcspec-202601.md    # 機能仕様書（本書）
+    ├── UsersGuide-202601.md  # 利用者の手引
+    └── FIREBASE_SETUP.md     # Firebase設定ガイド
 ```
+
+### 10.1 モジュール構成
+
+| モジュール | 役割 | 主要エクスポート |
+|-----------|------|-----------------|
+| config.js | 定数・設定 | DB_NAME, GPS_RECORD_*, PHOTO_* |
+| state.js | 状態管理 | map, isTracking, trackingData 等 |
+| utils.js | 汎用関数 | formatDateTime, calculateDistance 等 |
+| db.js | DB操作 | initIndexedDB, saveTrack, getAllPhotos 等 |
+| map.js | 地図機能 | initMap, updateCurrentMarker 等 |
+| tracking.js | GPS追跡 | startTracking, stopTracking 等 |
+| camera.js | カメラ | takePhoto, capturePhoto 等 |
+| firebase-ops.js | Firebase | saveToFirebase, reloadFromFirebase 等 |
+| ui.js | UI操作 | showPhotoList, showDataSize 等 |
+| app-main.js | 初期化 | initApp, setupEventListeners 等 |
 
 ---
 
@@ -430,3 +458,4 @@ WalkLogger/
 | 日付 | バージョン | 内容 |
 |------|-----------|------|
 | 2026-01-22 | 202601 | 初版作成（現行コードからの機能仕様書化） |
+| 2026-01-24 | 202601 | GPS記録条件にGPS精度チェックを追加、写真解像度を720x1280pxに固定、写真品質を0.6に変更、コードをES6モジュール構成にリファクタリング（10モジュール）、ファイル構成を更新 |
