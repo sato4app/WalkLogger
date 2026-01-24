@@ -87,7 +87,7 @@ function setupEventListeners() {
     document.getElementById('dataBtn').addEventListener('click', toggleDataPanel);
 
     // データ管理パネル
-    document.getElementById('dataListBtn').addEventListener('click', async () => {
+    document.getElementById('photoListBtn').addEventListener('click', async () => {
         await showPhotoList();
         returnToMainControl();
     });

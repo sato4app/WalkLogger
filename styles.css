@@ -52,7 +52,7 @@ body {
     top: env(safe-area-inset-top, 20px);
     left: 50%;
     transform: translateX(-50%);
-    width: 80%;
+    width: 60%;
     max-width: 400px;
     z-index: 100;
 }
@@ -79,6 +79,7 @@ body {
     font-size: 11px;
     color: var(--text-sub);
     font-variant-numeric: tabular-nums;
+    line-height: 1.4;
 }
 
 /* Panels (Controls & Data) */
@@ -179,7 +180,7 @@ body {
     background: #8E44AD;
 }
 
-.list-icon {
+.photos-icon {
     background: #FF9500;
 }
 

@@ -33,12 +33,19 @@ export function updateStatus(message) {
  * @param {number} lng - 経度
  * @param {number} accuracy - 精度
  */
-export function updateCoordinates(lat, lng, accuracy) {
+export function updateCoordinates(lat, lng, accuracy, distance, elapsed) {
     const coordsDiv = document.getElementById('coordinates');
+    const distText = distance !== undefined ? ` / 移動: ${Math.floor(distance)}m` : '';
+    const timeText = elapsed !== undefined ? ` / 経過: ${Math.floor(elapsed)}秒` : '';
+
     coordsDiv.innerHTML = `
-        緯度: ${lat.toFixed(5)}<br>
-        経度: ${lng.toFixed(5)}<br>
-        精度: ±${accuracy.toFixed(1)}m
+        <div style="display: flex; justify-content: center; gap: 10px;">
+            <span>緯度: ${lat.toFixed(5)}</span>
+            <span>経度: ${lng.toFixed(5)}</span>
+        </div>
+        <div>
+            精度: ±${accuracy.toFixed(1)}m${distText}${timeText}
+        </div>
     `;
 }
 

@@ -98,8 +98,19 @@ export async function updatePosition(position) {
         state.setCurrentHeading(position.coords.heading);
     }
 
+    let currentDist = 0;
+    let currentTimeDiff = 0;
+
+    if (state.isTracking && state.lastRecordedPoint) {
+        currentTimeDiff = (currentTime - state.lastRecordedPoint.time) / 1000;
+        currentDist = calculateDistance(
+            state.lastRecordedPoint.lat, state.lastRecordedPoint.lng,
+            lat, lng
+        );
+    }
+
     updateCurrentMarker(lat, lng, state.currentHeading);
-    updateCoordinates(lat, lng, accuracy);
+    updateCoordinates(lat, lng, accuracy, currentDist, currentTimeDiff);
 
     if (state.isTracking) {
         let shouldRecord = false;
