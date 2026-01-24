@@ -5,7 +5,7 @@ import * as state from './state.js';
 import { formatPositionData, base64ToBlob, calculateTrackStats } from './utils.js';
 import { getAllTracks, getAllPhotos, getLastPosition, initIndexedDB, clearIndexedDBSilent } from './db.js';
 import { clearMapData, updateTrackingPath, updateCurrentMarker, createArrowIcon, createPhotoIcon, displayPhotoMarkers } from './map.js';
-import { updateStatus, showDocNameDialog, showDocumentListDialog, showPhotoFromMarker } from './ui.js';
+import { updateStatus, showDocNameDialog, showDocumentListDialog, showPhotoFromMarker, closeDocumentListDialog } from './ui.js';
 
 /**
  * IndexedDBのデータをFirebaseに保存
@@ -189,7 +189,8 @@ export async function reloadFromFirebase() {
 export async function loadDocument(doc) {
     try {
         updateStatus('データを読み込み中...');
-        document.getElementById('documentListDialog').style.display = 'none';
+        // document.getElementById('documentListDialog').style.display = 'none';
+        closeDocumentListDialog();
 
         const data = doc.data;
 

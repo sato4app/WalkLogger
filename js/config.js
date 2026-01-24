@@ -21,7 +21,7 @@ export const GPS_RECORD_DISTANCE_M = 20;    // 記録距離（メートル）
 // 写真解像度
 export const PHOTO_WIDTH = 720;
 export const PHOTO_HEIGHT = 1280;
-export const PHOTO_QUALITY = 0.85;
+export const PHOTO_QUALITY = 0.6;
 
 // 地図タイル設定
 export const GSI_TILE_URL = 'https://cyberjapandata.gsi.go.jp/xyz/std/{z}/{x}/{y}.png';
