@@ -247,6 +247,10 @@ body {
     color: var(--text-main);
 }
 
+#statsBody {
+    margin-bottom: 24px;
+}
+
 /* Inputs & Forms */
 .text-input {
     width: 100%;
