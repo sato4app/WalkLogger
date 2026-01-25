@@ -152,7 +152,8 @@ export async function updatePosition(position) {
 
             // UI更新（DB保存より先に行う）
             updateTrackingPath(state.trackingData);
-            updateStatus(`GPS追跡中 (${state.trackingData.length}点記録)`);
+            const totalPoints = state.previousTotalPoints + state.trackingData.length;
+            updateStatus(`GPS追跡中 (${totalPoints}点記録)`);
             updateDataSizeIfOpen();
 
             state.setLastRecordedPoint({
@@ -257,6 +258,7 @@ export async function startTracking() {
             }
         } else if (result === 'append') {
             console.log('既存データに追記します');
+            state.setPreviousTotalPoints(trackStats.totalPoints);
         } else {
             console.log('記録開始をキャンセルしました');
             return;
@@ -271,6 +273,7 @@ export async function startTracking() {
     state.resetTrackingData();
     state.setPhotosInSession(0);
     state.setLastRecordedPoint(null);
+    state.setPreviousTotalPoints(0);
 
     // Saveボタンを有効化
     document.getElementById('dataSaveBtn').disabled = false;
@@ -341,7 +344,8 @@ export async function stopTracking() {
         const lastPoint = state.trackingData[state.trackingData.length - 1];
         await saveLastPosition(lastPoint.lat, lastPoint.lng, state.map.getZoom());
         await saveTrackingData();
-        updateStatus(`GPS追跡を停止しました (${state.trackingData.length}点記録)`);
+        const totalPoints = state.previousTotalPoints + state.trackingData.length;
+        updateStatus(`GPS追跡を停止しました (${totalPoints}点記録)`);
     } else {
         updateStatus('GPS追跡を停止しました');
     }

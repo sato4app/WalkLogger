@@ -37,7 +37,8 @@ export function updateCoordinates(lat, lng, accuracy, distance, elapsed) {
     const coordsDiv = document.getElementById('coordinates');
     const distText = distance !== undefined ? ` / 移動: ${Math.floor(distance)}m` : '';
     const timeText = elapsed !== undefined ? ` / 経過: ${Math.floor(elapsed)}秒` : '';
-    const countText = state.isTracking ? ` / 記録: ${state.trackingData.length}点` : '';
+    const totalPoints = state.isTracking ? (state.previousTotalPoints + state.trackingData.length) : 0;
+    const countText = state.isTracking ? ` / 記録: ${totalPoints}点` : '';
 
     coordsDiv.innerHTML = `
         <div style="display: flex; justify-content: center; gap: 10px;">
@@ -165,7 +166,8 @@ export async function showPhotoList() {
 export function closePhotoList() {
     toggleVisibility('photoListContainer', false);
     if (state.isTracking) {
-        updateStatus(`GPS追跡中 (${state.trackingData.length}点記録)`);
+        const totalPoints = state.previousTotalPoints + state.trackingData.length;
+        updateStatus(`GPS追跡中 (${totalPoints}点記録)`);
     }
 }
 
@@ -196,7 +198,8 @@ export function showPhotoViewer(photo) {
 export function closePhotoViewer() {
     toggleVisibility('photoViewer', false);
     if (state.isTracking) {
-        updateStatus(`GPS追跡中 (${state.trackingData.length}点記録)`);
+        const totalPoints = state.previousTotalPoints + state.trackingData.length;
+        updateStatus(`GPS追跡中 (${totalPoints}点記録)`);
     }
 }
 
@@ -245,7 +248,8 @@ export function showDocumentListDialog(documents, onLoad) {
 export function closeDocumentListDialog() {
     toggleVisibility('documentListDialog', false);
     if (state.isTracking) {
-        updateStatus(`GPS追跡中 (${state.trackingData.length}点記録)`);
+        const totalPoints = state.previousTotalPoints + state.trackingData.length;
+        updateStatus(`GPS追跡中 (${totalPoints}点記録)`);
     }
 }
 
@@ -341,7 +345,8 @@ export async function updateDataSizeIfOpen() {
 export function closeStatsDialog() {
     toggleVisibility('statsDialog', false);
     if (state.isTracking) {
-        updateStatus(`GPS追跡中 (${state.trackingData.length}点記録)`);
+        const totalPoints = state.previousTotalPoints + state.trackingData.length;
+        updateStatus(`GPS追跡中 (${totalPoints}点記録)`);
     }
 }
 

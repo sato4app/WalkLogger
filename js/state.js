@@ -15,6 +15,7 @@ export let trackingStartDate = null;
 export let trackingStopDate = null;
 export let lastRecordedPoint = null;
 export let currentHeading = 0;
+export let previousTotalPoints = 0;
 
 // Wake Lock
 export let wakeLock = null;
@@ -43,6 +44,7 @@ export function setTrackingStartDate(value) { trackingStartDate = value; }
 export function setTrackingStopDate(value) { trackingStopDate = value; }
 export function setLastRecordedPoint(value) { lastRecordedPoint = value; }
 export function setCurrentHeading(value) { currentHeading = value; }
+export function setPreviousTotalPoints(value) { previousTotalPoints = value; }
 export function setWakeLock(value) { wakeLock = value; }
 export function setCameraStream(value) { cameraStream = value; }
 export function setCapturedPhotoData(value) { capturedPhotoData = value; }
