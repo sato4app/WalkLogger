@@ -1,7 +1,7 @@
 // WalkLogger Service Worker
 // PWA対応: オフライン機能とキャッシュ管理
 
-const CACHE_NAME = 'walklogger-v4';
+const CACHE_NAME = 'walklogger-v5';
 const urlsToCache = [
   './',
   './index.html',
@@ -23,27 +23,27 @@ const urlsToCache = [
 ];
 
 // Service Workerのインストール
-self.addEventListener('install', function(event) {
+self.addEventListener('install', function (event) {
   console.log('[Service Worker] インストール中...');
   event.waitUntil(
     caches.open(CACHE_NAME)
-      .then(function(cache) {
+      .then(function (cache) {
         console.log('[Service Worker] キャッシュを開きました');
         return cache.addAll(urlsToCache);
       })
-      .catch(function(error) {
+      .catch(function (error) {
         console.error('[Service Worker] キャッシュエラー:', error);
       })
   );
 });
 
 // Service Workerのアクティベーション
-self.addEventListener('activate', function(event) {
+self.addEventListener('activate', function (event) {
   console.log('[Service Worker] アクティベート中...');
   event.waitUntil(
-    caches.keys().then(function(cacheNames) {
+    caches.keys().then(function (cacheNames) {
       return Promise.all(
-        cacheNames.map(function(cacheName) {
+        cacheNames.map(function (cacheName) {
           if (cacheName !== CACHE_NAME) {
             console.log('[Service Worker] 古いキャッシュを削除:', cacheName);
             return caches.delete(cacheName);
@@ -55,12 +55,12 @@ self.addEventListener('activate', function(event) {
 });
 
 // リクエストの処理
-self.addEventListener('fetch', function(event) {
+self.addEventListener('fetch', function (event) {
   // 国土地理院のタイルは常にネットワークから取得（リアルタイム性のため）
   if (event.request.url.includes('cyberjapandata.gsi.go.jp')) {
     event.respondWith(
       fetch(event.request)
-        .catch(function() {
+        .catch(function () {
           // オフライン時は何も返さない（地図が表示されないだけ）
           return new Response('', { status: 200 });
         })
@@ -71,7 +71,7 @@ self.addEventListener('fetch', function(event) {
   // その他のリソースはキャッシュファースト戦略
   event.respondWith(
     caches.match(event.request)
-      .then(function(response) {
+      .then(function (response) {
         // キャッシュにあればそれを返す
         if (response) {
           return response;
@@ -79,7 +79,7 @@ self.addEventListener('fetch', function(event) {
 
         // なければネットワークから取得
         return fetch(event.request)
-          .then(function(response) {
+          .then(function (response) {
             // レスポンスが有効でない場合はそのまま返す
             if (!response || response.status !== 200 || response.type !== 'basic') {
               return response;
@@ -88,13 +88,13 @@ self.addEventListener('fetch', function(event) {
             // レスポンスをクローンしてキャッシュに保存
             const responseToCache = response.clone();
             caches.open(CACHE_NAME)
-              .then(function(cache) {
+              .then(function (cache) {
                 cache.put(event.request, responseToCache);
               });
 
             return response;
           })
-          .catch(function(error) {
+          .catch(function (error) {
             console.error('[Service Worker] フェッチエラー:', error);
           });
       })

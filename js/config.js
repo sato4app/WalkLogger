@@ -2,7 +2,7 @@
 
 // IndexedDB設定
 export const DB_NAME = 'WalkLoggerDB';
-export const DB_VERSION = 2;
+export const DB_VERSION = 3;
 export const STORE_TRACKS = 'tracks';
 export const STORE_PHOTOS = 'photos';
 export const STORE_SETTINGS = 'settings';
