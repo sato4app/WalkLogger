@@ -51,7 +51,8 @@ async function initApp() {
     await initMap();
 
     // 写真マーカー表示
-    await displayPhotoMarkers(showPhotoFromMarker);
+    // prompt.mdの指示により初期表示を無効化
+    // await displayPhotoMarkers(showPhotoFromMarker);
 
     // イベントリスナー設定
     setupEventListeners();
