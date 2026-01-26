@@ -339,51 +339,53 @@ export async function loadOfficialPoints() {
     try {
         updateStatus('Official Pointsを読み込み中...');
         const firestoreDb = firebase.firestore();
-        const querySnapshot = await firestoreDb.collection('OfficialPoints').get();
+        const docRef = firestoreDb.collection('projects').doc('OfficialPoints');
+        const doc = await docRef.get();
 
-        if (querySnapshot.empty) {
-            alert('Official Pointsが見つかりませんでした');
+        if (!doc.exists) {
+            alert('Official Pointsドキュメントが見つかりませんでした');
             updateStatus('Official Pointsなし');
             return;
         }
 
+        const data = doc.data();
         let count = 0;
-        querySnapshot.forEach(doc => {
-            const data = doc.data();
-            let lat, lng;
 
-            // 座標データの形式をいくつか想定してチェック
-            if (data.lat !== undefined && data.lng !== undefined) {
-                lat = parseFloat(data.lat);
-                lng = parseFloat(data.lng);
-            } else if (data.location && data.location.lat !== undefined && data.location.lng !== undefined) {
-                lat = parseFloat(data.location.lat);
-                lng = parseFloat(data.location.lng);
-            } else if (data.latitude !== undefined && data.longitude !== undefined) {
-                lat = parseFloat(data.latitude);
-                lng = parseFloat(data.longitude);
-            }
+        // data.points (Array) を展開して表示
+        // 形式: { pointID, name, latitude, longitude, elevation }
+        if (data.points && Array.isArray(data.points)) {
+            data.points.forEach(point => {
+                let lat = parseFloat(point.latitude);
+                let lng = parseFloat(point.longitude);
 
-            if (!isNaN(lat) && !isNaN(lng)) {
-                // 緑色の円形マーカー (size 8px -> radius 4)
-                // z-indexについて:
-                // L.circleMarkerはSVG/Canvasを使用しoverlayPane (z-index 400)に描画されます。
-                // 写真マーカー(L.marker)はmarkerPane (z-index 600)に描画されるため、
-                // 自然に写真マーカーの下に表示されます。
-                if (state.map) {
-                    const marker = L.circleMarker([lat, lng], {
-                        radius: 4,
-                        color: '#4CAF50', // Green
-                        fillColor: '#4CAF50',
-                        fillOpacity: 0.8,
-                        weight: 1,
-                        interactive: false // クリックなどのイベントを無効化（必要に応じて有効化）
-                    }).addTo(state.map);
-                    state.addOfficialMarker(marker);
-                    count++;
+                if (!isNaN(lat) && !isNaN(lng)) {
+                    // 緑色の円形マーカー
+                    if (state.map) {
+                        const marker = L.circleMarker([lat, lng], {
+                            radius: 4,
+                            color: '#4CAF50', // Green
+                            fillColor: '#4CAF50',
+                            fillOpacity: 0.8,
+                            weight: 1,
+                            interactive: true // ポップアップ表示のために有効化
+                        });
+
+                        // ポップアップの設定 (左寄せ)
+                        const popupContent = `
+                            <div style="text-align: left; font-family: sans-serif;">
+                                <strong>${point.pointID || ''}</strong><br>
+                                ${point.name || ''}
+                            </div>
+                        `;
+                        marker.bindPopup(popupContent);
+
+                        marker.addTo(state.map);
+                        state.addOfficialMarker(marker);
+                        count++;
+                    }
                 }
-            }
-        });
+            });
+        }
 
         console.log(`Official Pointsを${count}件表示しました`);
         updateStatus(`Official Points: ${count}件表示`);
