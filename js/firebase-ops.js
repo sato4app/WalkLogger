@@ -340,70 +340,67 @@ export async function loadOfficialPoints() {
         updateStatus('Official Pointsを読み込み中...');
         const firestoreDb = firebase.firestore();
 
-        // projects/OfficialPoints/points サブコレクションを取得
-        const pointsCollectionRef = firestoreDb.collection('projects').doc('OfficialPoints').collection('points');
-        const querySnapshot = await pointsCollectionRef.get();
+        // projects/OfficialPoints ドキュメントを取得
+        const docRef = firestoreDb.collection('projects').doc('OfficialPoints');
+        const doc = await docRef.get();
 
-        if (querySnapshot.empty) {
-            console.log('Official Pointsのサブコレクション points が空、もしくは見つかりません');
-            // 念のためドキュメント自体が存在するか確認（デバッグ用）
-            const docRef = firestoreDb.collection('projects').doc('OfficialPoints');
-            const doc = await docRef.get();
-            if (!doc.exists) {
-                alert('Official Pointsドキュメントが見つかりませんでした');
-                updateStatus('Official Pointsなし');
-                return;
-            } else {
-                alert('Official Points内のpointsコレクションが見つかりませんでした');
-                updateStatus('pointsデータなし');
-                return;
-            }
+        if (!doc.exists) {
+            alert('Official Pointsドキュメントが見つかりませんでした');
+            updateStatus('Official Pointsなし');
+            return;
         }
 
+        const data = doc.data();
         let count = 0;
-        querySnapshot.forEach(doc => {
-            const data = doc.data();
-            // フィールド: ポイントID, 名称, 緯度, 経度, 標高
-            // 英語フィールド名(pointID, name, latitude, longitude, elevation)を想定
-            // 日本語フィールド名の可能性も考慮すべきだが、まずは英語でトライ
 
-            let lat = parseFloat(data.latitude);
-            let lng = parseFloat(data.longitude);
+        // data.points (Array) を展開
+        // データ構造: [ [ID, Name, Lat, Lng, Elev], ... ]
+        if (data.points && Array.isArray(data.points)) {
+            data.points.forEach(pointData => {
+                let pId, pName, lat, lng;
 
-            // 日本語フィールド名対応のバックアップ
-            if (isNaN(lat)) lat = parseFloat(data['緯度']);
-            if (isNaN(lng)) lng = parseFloat(data['経度']);
-
-            if (!isNaN(lat) && !isNaN(lng)) {
-                // 緑色の円形マーカー
-                if (state.map) {
-                    const marker = L.circleMarker([lat, lng], {
-                        radius: 4,
-                        color: '#4CAF50', // Green
-                        fillColor: '#4CAF50',
-                        fillOpacity: 0.8,
-                        weight: 1,
-                        interactive: true
-                    });
-
-                    const pId = data.pointID || data['ポイントID'] || '';
-                    const pName = data.name || data['名称'] || '';
-
-                    // ポップアップの設定 (左寄せ)
-                    const popupContent = `
-                        <div style="text-align: left; font-family: sans-serif;">
-                            <strong>${pId}</strong><br>
-                            ${pName}
-                        </div>
-                    `;
-                    marker.bindPopup(popupContent);
-
-                    marker.addTo(state.map);
-                    state.addOfficialMarker(marker);
-                    count++;
+                if (Array.isArray(pointData)) {
+                    // 配列形式: [ID, Name, Lat, Lng, Elev]
+                    pId = pointData[0];
+                    pName = pointData[1];
+                    lat = parseFloat(pointData[2]);
+                    lng = parseFloat(pointData[3]);
+                    // elevation = pointData[4]; // 未使用
+                } else {
+                    // オブジェクト形式(念のため残す)
+                    pId = pointData.pointID || pointData.id;
+                    pName = pointData.name;
+                    lat = parseFloat(pointData.latitude || pointData.lat);
+                    lng = parseFloat(pointData.longitude || pointData.lng);
                 }
-            }
-        });
+
+                if (!isNaN(lat) && !isNaN(lng)) {
+                    if (state.map) {
+                        const marker = L.circleMarker([lat, lng], {
+                            radius: 4,
+                            color: '#4CAF50', // Green
+                            fillColor: '#4CAF50',
+                            fillOpacity: 0.8,
+                            weight: 1,
+                            interactive: true
+                        });
+
+                        // ポップアップの設定 (左寄せ)
+                        const popupContent = `
+                            <div style="text-align: left; font-family: sans-serif;">
+                                <strong>${pId || ''}</strong><br>
+                                ${pName || ''}
+                            </div>
+                        `;
+                        marker.bindPopup(popupContent);
+
+                        marker.addTo(state.map);
+                        state.addOfficialMarker(marker);
+                        count++;
+                    }
+                }
+            });
+        }
 
         console.log(`Official Pointsを${count}件表示しました`);
         updateStatus(`Official Points: ${count}件表示`);
