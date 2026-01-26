@@ -322,7 +322,7 @@ export async function loadDocument(doc) {
         const trackStats = data.tracks ? calculateTrackStats(data.tracks) : { trackCount: 0, totalPoints: 0 };
         const actualPhotos = await getAllPhotos();
 
-        updateStatus(`データを読み込みました: ${doc.id}`);
+        updateStatus(`データを読み込みました:\n${doc.id}`);
         alert(`データを読み込みました\nドキュメント名: ${doc.id}\nトラック: ${trackStats.trackCount}件（位置記録点: ${trackStats.totalPoints}件）\n写真: ${actualPhotos.length}枚`);
 
     } catch (error) {
