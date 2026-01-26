@@ -37,8 +37,6 @@ export function updateCoordinates(lat, lng, accuracy, distance, elapsed) {
     const coordsDiv = document.getElementById('coordinates');
     const distText = distance !== undefined ? ` / 移動: ${Math.floor(distance)}m` : '';
     const timeText = elapsed !== undefined ? ` / 経過: ${Math.floor(elapsed)}秒` : '';
-    const totalPoints = state.isTracking ? (state.previousTotalPoints + state.trackingData.length) : 0;
-    const countText = state.isTracking ? ` / 記録: ${totalPoints}点` : '';
 
     coordsDiv.innerHTML = `
         <div style="display: flex; justify-content: center; gap: 10px;">
@@ -46,7 +44,7 @@ export function updateCoordinates(lat, lng, accuracy, distance, elapsed) {
             <span>経度: ${lng.toFixed(5)}</span>
         </div>
         <div>
-            精度: ±${accuracy.toFixed(1)}m${distText}${timeText}${countText}
+            精度: ±${accuracy.toFixed(1)}m${distText}${timeText}
         </div>
     `;
 }

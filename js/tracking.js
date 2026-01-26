@@ -5,7 +5,7 @@ import * as state from './state.js';
 import { calculateDistance, formatDateTime } from './utils.js';
 import { initIndexedDB, getAllTracks, getAllPhotos, clearIndexedDBSilent, saveLastPosition, saveTrackingDataRealtime, saveTrackingData } from './db.js';
 import { calculateTrackStats } from './utils.js';
-import { updateCurrentMarker, updateTrackingPath, clearMapData } from './map.js';
+import { updateCurrentMarker, updateTrackingPath, clearMapData, updateCompass } from './map.js';
 import { updateStatus, updateCoordinates, updateDataSizeIfOpen, showClearDataDialog } from './ui.js';
 
 /**
@@ -91,7 +91,9 @@ export function handleDeviceOrientation(event) {
 export async function updatePosition(position) {
     const lat = position.coords.latitude;
     const lng = position.coords.longitude;
+    const altitude = position.coords.altitude;
     const accuracy = position.coords.accuracy;
+    const altitudeAccuracy = position.coords.altitudeAccuracy;
     const currentTime = Date.now();
 
     if (position.coords.heading !== null && position.coords.heading !== undefined) {
@@ -110,6 +112,7 @@ export async function updatePosition(position) {
     }
 
     updateCurrentMarker(lat, lng, state.currentHeading);
+    updateCompass(state.currentHeading || 0);
     updateCoordinates(lat, lng, accuracy, currentDist, currentTimeDiff);
 
     // 記録中は地図を現在地に追従
@@ -144,8 +147,10 @@ export async function updatePosition(position) {
             const recordedPoint = {
                 lat: parseFloat(lat.toFixed(5)),
                 lng: parseFloat(lng.toFixed(5)),
+                altitude: altitude !== null ? parseFloat(altitude.toFixed(1)) : null,
                 timestamp: new Date().toISOString(),
-                accuracy: parseFloat(accuracy.toFixed(1))
+                accuracy: parseFloat(accuracy.toFixed(1)),
+                altitudeAccuracy: altitudeAccuracy !== null ? parseFloat(altitudeAccuracy.toFixed(1)) : null
             };
 
             state.addTrackingPoint(recordedPoint);

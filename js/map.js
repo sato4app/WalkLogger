@@ -57,8 +57,52 @@ export async function initMap() {
         console.warn('位置取得エラー。デフォルト位置を使用します:', error);
     }
 
-    const mapInstance = L.map('map').setView([initialPosition.lat, initialPosition.lng], initialPosition.zoom);
+    const mapInstance = L.map('map', {
+        zoomControl: false // Disable default zoom control
+    }).setView([initialPosition.lat, initialPosition.lng], initialPosition.zoom);
     state.setMap(mapInstance);
+
+    // 1. Scale Control (Top Left)
+    L.control.scale({
+        position: 'topleft',
+        metric: true,
+        imperial: false
+    }).addTo(mapInstance);
+
+    // 2. Compass Control (Top Left, below Scale)
+    const CompassControl = L.Control.extend({
+        onAdd: function (map) {
+            const container = L.DomUtil.create('div', 'compass-control leaflet-bar');
+            container.innerHTML = `
+                <div id="compassArrow" class="compass-arrow">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="12" cy="12" r="10"></circle>
+                        <polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76" fill="red" stroke="none"></polygon>
+                        <polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76" stroke="currentColor"></polygon>
+                    </svg>
+                </div>
+            `;
+            container.onclick = function () {
+                // Reset bearing to North (0) or re-center map if needed
+                // For now, maybe just reset orientation? Or do nothing special.
+                // Creating a button behavior if requested? User said "Show compass icon".
+                // Let's make it click to North up?
+                if (state.map) state.map.setBearing && state.map.setBearing(0); // If rotate plugin exists.
+                // Standard Leaflet doesn't rotate map, just heading.
+                // So maybe just visual.
+            };
+            return container;
+        },
+        onRemove: function (map) {
+            // Nothing to do here
+        }
+    });
+    new CompassControl({ position: 'topleft' }).addTo(mapInstance);
+
+    // 3. Zoom Control (Top Left, below Compass)
+    L.control.zoom({
+        position: 'topleft'
+    }).addTo(mapInstance);
 
     L.tileLayer(GSI_TILE_URL, {
         attribution: GSI_ATTRIBUTION,
@@ -178,4 +222,21 @@ export function addPhotoMarkerToMap(photo, onMarkerClick) {
     }
 
     state.addPhotoMarker(marker);
+}
+/**
+ * コンパスの表示を更新
+ * @param {number} heading - 方角（度）
+ */
+export function updateCompass(heading) {
+    const arrow = document.getElementById('compassArrow');
+    if (arrow) {
+        // コンパスの針は「北」を指すようにする
+        // デバイスが向いている方向(heading)に対して、針を逆回転させるか、
+        // あるいは「コンパスアイコン自体」が「北」を示すなら、
+        // デバイスのHeading分だけ回転させて「北」の方角を示す。
+        // 一般的にコンパスアイコン: 上が北。
+        // スマホが右(90度)を向くと、画面上の「北」は左(-90度)に来るべき。
+        // よって rotate(-heading) が正しい。
+        arrow.style.transform = `rotate(${-heading}deg)`;
+    }
 }

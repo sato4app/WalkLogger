@@ -50,9 +50,10 @@ body {
 #status {
     position: absolute;
     top: env(safe-area-inset-top, 20px);
-    left: 50%;
-    transform: translateX(-50%);
-    width: 70%;
+    right: 20px;
+    left: auto;
+    transform: none;
+    width: auto;
     max-width: 400px;
     z-index: 100;
 }
@@ -529,6 +530,7 @@ body {
     z-index: 1000 !important;
 }
 
+
 .photo-marker {
     width: 14px;
     height: 14px;
@@ -536,4 +538,25 @@ body {
     border: 2px solid white;
     border-radius: 50%;
     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.25);
+}
+
+/* Compass Control */
+.compass-control {
+    background: white;
+    width: 32px;
+    height: 32px;
+    border-radius: 4px;
+    border: 2px solid rgba(0, 0, 0, 0.2);
+    box-shadow: 0 1px 5px rgba(0, 0, 0, 0.4);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    margin-bottom: 10px;
+}
+
+.compass-arrow {
+    width: 24px;
+    height: 24px;
+    transition: transform 0.1s ease-out;
 }
