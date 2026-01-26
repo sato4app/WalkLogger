@@ -331,3 +331,68 @@ export async function loadDocument(doc) {
         updateStatus('データ読み込みエラー');
     }
 }
+
+/**
+ * Official Pointsを読み込んで地図に表示
+ */
+export async function loadOfficialPoints() {
+    try {
+        updateStatus('Official Pointsを読み込み中...');
+        const firestoreDb = firebase.firestore();
+        const querySnapshot = await firestoreDb.collection('OfficialPoints').get();
+
+        if (querySnapshot.empty) {
+            alert('Official Pointsが見つかりませんでした');
+            updateStatus('Official Pointsなし');
+            return;
+        }
+
+        let count = 0;
+        querySnapshot.forEach(doc => {
+            const data = doc.data();
+            let lat, lng;
+
+            // 座標データの形式をいくつか想定してチェック
+            if (data.lat !== undefined && data.lng !== undefined) {
+                lat = parseFloat(data.lat);
+                lng = parseFloat(data.lng);
+            } else if (data.location && data.location.lat !== undefined && data.location.lng !== undefined) {
+                lat = parseFloat(data.location.lat);
+                lng = parseFloat(data.location.lng);
+            } else if (data.latitude !== undefined && data.longitude !== undefined) {
+                lat = parseFloat(data.latitude);
+                lng = parseFloat(data.longitude);
+            }
+
+            if (!isNaN(lat) && !isNaN(lng)) {
+                // 緑色の円形マーカー (size 8px -> radius 4)
+                // z-indexについて:
+                // L.circleMarkerはSVG/Canvasを使用しoverlayPane (z-index 400)に描画されます。
+                // 写真マーカー(L.marker)はmarkerPane (z-index 600)に描画されるため、
+                // 自然に写真マーカーの下に表示されます。
+                if (state.map) {
+                    const marker = L.circleMarker([lat, lng], {
+                        radius: 4,
+                        color: '#4CAF50', // Green
+                        fillColor: '#4CAF50',
+                        fillOpacity: 0.8,
+                        weight: 1,
+                        interactive: false // クリックなどのイベントを無効化（必要に応じて有効化）
+                    }).addTo(state.map);
+                    state.addOfficialMarker(marker);
+                    count++;
+                }
+            }
+        });
+
+        console.log(`Official Pointsを${count}件表示しました`);
+        updateStatus(`Official Points: ${count}件表示`);
+
+        // ダイアログは閉じない（指示通り）
+
+    } catch (error) {
+        console.error('Official Points読み込みエラー:', error);
+        alert('Official Pointsの読み込みに失敗しました: ' + error.message);
+        updateStatus('読み込みエラー');
+    }
+}

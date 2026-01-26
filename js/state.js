@@ -57,3 +57,9 @@ export function addPhotoMarker(marker) { photoMarkers.push(marker); }
 export function clearPhotoMarkers() { photoMarkers = []; }
 export function addTrackingPoint(point) { trackingData.push(point); }
 export function resetTrackingData() { trackingData = []; }
+
+// Official Points Markers
+export let officialMarkers = [];
+export function setOfficialMarkers(value) { officialMarkers = value; }
+export function addOfficialMarker(marker) { officialMarkers.push(marker); }
+export function clearOfficialMarkers() { officialMarkers = []; }
