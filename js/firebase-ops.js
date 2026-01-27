@@ -382,10 +382,17 @@ export async function loadOfficialPoints() {
         const data = doc.data();
         let count = 0;
 
+        console.log('[DEBUG] Official Points Data:', data);
+
         // data.points (Array) を展開
         // データ構造: [ [ID, Name, Lat, Lng, Elev], ... ]
         if (data.points && Array.isArray(data.points)) {
-            data.points.forEach(pointData => {
+            console.log('[DEBUG] Points count:', data.points.length);
+            if (data.points.length > 0) {
+                console.log('[DEBUG] Sample Point[0]:', data.points[0]);
+            }
+
+            data.points.forEach((pointData, i) => {
                 let pId, pName, lat, lng;
 
                 if (Array.isArray(pointData)) {
@@ -401,6 +408,10 @@ export async function loadOfficialPoints() {
                     pName = pointData.name;
                     lat = parseFloat(pointData.latitude || pointData.lat);
                     lng = parseFloat(pointData.longitude || pointData.lng);
+                }
+
+                if (i < 3) {
+                    console.log(`[DEBUG] Parsed Point[${i}]:`, { pId, pName, lat, lng, original: pointData });
                 }
 
                 if (!isNaN(lat) && !isNaN(lng)) {
@@ -429,6 +440,8 @@ export async function loadOfficialPoints() {
                     }
                 }
             });
+        } else {
+            console.warn('[DEBUG] data.points is missing or not an array', data);
         }
 
         console.log(`Official Pointsを${count}件表示しました`);
