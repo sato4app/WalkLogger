@@ -382,7 +382,7 @@ export async function loadOfficialPoints() {
         const data = doc.data();
         let count = 0;
 
-        console.log('[DEBUG] Official Points Data:', data);
+
 
         // data.points (Array) を展開
         // データ構造: [ [ID, Name, Lat, Lng, Elev], ... ]
@@ -408,7 +408,7 @@ export async function loadOfficialPoints() {
                 if (!isNaN(lat) && !isNaN(lng)) {
                     if (state.map) {
                         const marker = L.circleMarker([lat, lng], {
-                            radius: 4,
+                            radius: 8,
                             color: '#4CAF50', // Green
                             fillColor: '#4CAF50',
                             fillOpacity: 0.8,

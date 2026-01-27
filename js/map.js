@@ -162,6 +162,9 @@ export async function displayPhotoMarkers(onMarkerClick) {
 /**
  * 地図上のマーカーと軌跡をクリア
  */
+/**
+ * 地図上のマーカーと軌跡をクリア
+ */
 export function clearMapData() {
     if (state.trackingPath) {
         state.trackingPath.setLatLngs([]);
@@ -170,7 +173,11 @@ export function clearMapData() {
 
     state.photoMarkers.forEach(marker => state.map.removeLayer(marker));
     state.clearPhotoMarkers();
-    console.log('写真マーカーをクリアしました');
+
+    state.routeMarkers.forEach(marker => state.map.removeLayer(marker));
+    state.clearRouteMarkers();
+
+    console.log('写真マーカーとルートマーカーをクリアしました');
 }
 
 /**
@@ -231,15 +238,7 @@ export function addPhotoMarkerToMap(photo, onMarkerClick) {
 export function addStartMarker(lat, lng) {
     const icon = createSquareIcon();
     const marker = L.marker([lat, lng], { icon: icon, title: 'Start Point', zIndexOffset: 1000 }).addTo(state.map);
-    // startMarkerというstate変数があれば管理するが、ここでは汎用マーカーとして扱うか、
-    // あるいはStart専用として保持するか検討が必要。
-    // 一旦、photoMarkersなどと同様に管理するか、あるいは単に地図に追加するだけにする。
-    // ここではstateには保存せず、地図に追加するだけとする（クリア時に消えるようにtrackingPathの一部として扱うか？）
-    // clearMapDataで消す必要があるので、state.photoMarkersに加えて管理するか、class付与で消すのが良い。
-    // 既存のstate管理に合わせるため、ここではstate.photoMarkersに追加してしまう（便宜上）。
-    // あるいはtrackingPathと一緒に消えるのであれば、LayerGroupにしたほうがいいかもしれないが、
-    // 現状の実装に合わせてphotoMarkersに追加して管理する。
-    state.addPhotoMarker(marker);
+    state.addRouteMarker(marker);
 }
 
 /**
@@ -251,7 +250,7 @@ export function addStartMarker(lat, lng) {
 export function addEndMarker(lat, lng, heading) {
     const arrowIcon = createArrowIcon(heading);
     const marker = L.marker([lat, lng], { icon: arrowIcon, title: 'End Point', zIndexOffset: 1000 }).addTo(state.map);
-    state.addPhotoMarker(marker);
+    state.addRouteMarker(marker);
 }
 
 /**

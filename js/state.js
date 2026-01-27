@@ -57,6 +57,12 @@ export function setFirebaseAuthReady(value) { firebaseAuthReady = value; }
 // 配列操作
 export function addPhotoMarker(marker) { photoMarkers.push(marker); }
 export function clearPhotoMarkers() { photoMarkers = []; }
+
+// Route/System Markers (Start, End, etc.)
+export let routeMarkers = [];
+export function addRouteMarker(marker) { routeMarkers.push(marker); }
+export function clearRouteMarkers() { routeMarkers = []; }
+
 export function addTrackingPoint(point) { trackingData.push(point); }
 export function resetTrackingData() { trackingData = []; }
 
