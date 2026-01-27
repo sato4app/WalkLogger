@@ -242,3 +242,25 @@ export function addStartMarker(lat, lng) {
     state.addPhotoMarker(marker);
 }
 
+/**
+ * 終了マーカーを表示（矢印）
+ * @param {number} lat - 緯度
+ * @param {number} lng - 経度
+ * @param {number} heading - 方角
+ */
+export function addEndMarker(lat, lng, heading) {
+    const arrowIcon = createArrowIcon(heading);
+    const marker = L.marker([lat, lng], { icon: arrowIcon, title: 'End Point', zIndexOffset: 1000 }).addTo(state.map);
+    state.addPhotoMarker(marker);
+}
+
+/**
+ * 現在位置マーカーを削除
+ */
+export function removeCurrentMarker() {
+    if (state.currentMarker) {
+        state.map.removeLayer(state.currentMarker);
+        state.setCurrentMarker(null);
+    }
+}
+

@@ -4,7 +4,7 @@ import { STORE_TRACKS, STORE_PHOTOS } from './config.js';
 import * as state from './state.js';
 import { formatPositionData, base64ToBlob, calculateTrackStats, calculateHeading } from './utils.js';
 import { getAllTracks, getAllPhotos, getLastPosition, initIndexedDB, clearIndexedDBSilent } from './db.js';
-import { clearMapData, updateTrackingPath, updateCurrentMarker, createArrowIcon, createPhotoIcon, displayPhotoMarkers, addStartMarker } from './map.js';
+import { clearMapData, updateTrackingPath, updateCurrentMarker, createArrowIcon, createPhotoIcon, displayPhotoMarkers, addStartMarker, addEndMarker, removeCurrentMarker } from './map.js';
 import { updateStatus, showDocNameDialog, showDocumentListDialog, showPhotoFromMarker, closeDocumentListDialog } from './ui.js';
 
 /**
@@ -262,7 +262,9 @@ export async function loadDocument(doc) {
                 const endPointObj = { lat: endPoint[0], lng: endPoint[1] };
 
                 const heading = calculateHeading(endPointObj, historyPointsObj);
-                updateCurrentMarker(endPoint[0], endPoint[1], heading);
+                // updateCurrentMarker(endPoint[0], endPoint[1], heading);
+                removeCurrentMarker();
+                addEndMarker(endPoint[0], endPoint[1], heading);
             }
         }
 
