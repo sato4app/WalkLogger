@@ -227,7 +227,7 @@ export function showDocumentListDialog(documents, onLoad) {
 
         const stats = document.createElement('div');
         stats.className = 'doc-item-meta';
-        stats.textContent = `トラック: ${doc.data.tracksCount || 0} | 写真: ${doc.data.photosCount || 0}`;
+        stats.textContent = `記録点数: ${doc.data.tracks ? doc.data.tracks.reduce((sum, t) => sum + (t.points?.length || 0), 0) : 0} | 写真: ${doc.data.photosCount || 0}`;
 
         docItem.appendChild(title);
         docItem.appendChild(meta);
@@ -292,8 +292,8 @@ export async function showDataSize() {
         const statsHTML = `
             <div class="stat-section">
                 <div class="stat-row">
-                    <span class="stat-label">トラック:</span>
-                    <span class="stat-value">${trackStats.trackCount}件 (${trackStats.totalPoints}点)</span>
+                    <span class="stat-label">記録点数:</span>
+                    <span class="stat-value">${trackStats.totalPoints}点</span>
                 </div>
                 <div class="stat-row">
                     <span class="stat-label">GPSサイズ:</span>

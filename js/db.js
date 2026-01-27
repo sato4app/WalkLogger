@@ -176,7 +176,34 @@ export function savePhoto(photoRecord) {
 }
 
 /**
- * トラッキングデータをリアルタイム保存
+ * トラックの初期レコードを作成
+ * @param {string} timestamp
+ * @returns {Promise<number>} trackId
+ */
+export function createInitialTrack(timestamp) {
+    if (!state.db) return Promise.reject(new Error('データベースが初期化されていません'));
+
+    const trackData = {
+        timestamp: timestamp,
+        points: [],
+        totalPoints: 0
+    };
+
+    return new Promise((resolve, reject) => {
+        const transaction = state.db.transaction([STORE_TRACKS], 'readwrite');
+        const store = transaction.objectStore(STORE_TRACKS);
+        const request = store.add(trackData);
+
+        request.onsuccess = () => {
+            console.log('初期トラックを作成しました。ID:', request.result);
+            resolve(request.result);
+        };
+        request.onerror = () => reject(request.error);
+    });
+}
+
+/**
+ * トラッキングデータをリアルタイム保存 (ID指定で更新)
  */
 export async function saveTrackingDataRealtime() {
     if (!state.db) {
@@ -184,7 +211,13 @@ export async function saveTrackingDataRealtime() {
         return;
     }
 
+    if (!state.currentTrackId) {
+        console.warn('トラックIDが設定されていません。保存をスキップします。');
+        return;
+    }
+
     const trackData = {
+        id: state.currentTrackId,
         timestamp: state.trackingStartTime,
         points: state.trackingData,
         totalPoints: state.trackingData.length
@@ -195,65 +228,13 @@ export async function saveTrackingDataRealtime() {
         const store = transaction.objectStore(STORE_TRACKS);
 
         await new Promise((resolve, reject) => {
-            const request = store.openCursor();
-            let found = false;
-
-            request.onsuccess = (event) => {
-                const cursor = event.target.result;
-                if (cursor) {
-                    if (cursor.value.timestamp === state.trackingStartTime) {
-                        cursor.update(trackData);
-                        found = true;
-                        resolve();
-                    } else {
-                        cursor.continue();
-                    }
-                } else {
-                    if (!found) {
-                        store.add(trackData);
-                    }
-                    resolve();
-                }
-            };
-
+            const request = store.put(trackData); // IDを指定して更新
+            request.onsuccess = () => resolve();
             request.onerror = () => reject(request.error);
         });
     } catch (error) {
         console.error('リアルタイムデータ保存エラー:', error);
         throw error;
-    }
-}
-
-/**
- * トラッキングデータを最終保存
- */
-export async function saveTrackingData() {
-    if (!state.db) {
-        console.error('データベースが初期化されていません');
-        return;
-    }
-
-    const trackData = {
-        timestamp: new Date().toISOString(),
-        points: state.trackingData,
-        totalPoints: state.trackingData.length
-    };
-
-    try {
-        const transaction = state.db.transaction([STORE_TRACKS], 'readwrite');
-        const store = transaction.objectStore(STORE_TRACKS);
-
-        await new Promise((resolve, reject) => {
-            const request = store.add(trackData);
-            request.onsuccess = () => {
-                console.log('トラッキングデータを保存しました。ID:', request.result);
-                resolve();
-            };
-            request.onerror = () => reject(request.error);
-        });
-    } catch (e) {
-        console.error('データ保存エラー:', e);
-        throw e;
     }
 }
 

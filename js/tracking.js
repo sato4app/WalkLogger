@@ -3,9 +3,9 @@
 import { GPS_RECORD_INTERVAL_SEC, GPS_RECORD_DISTANCE_M } from './config.js';
 import * as state from './state.js';
 import { calculateDistance, formatDateTime } from './utils.js';
-import { initIndexedDB, getAllTracks, getAllPhotos, clearIndexedDBSilent, saveLastPosition, saveTrackingDataRealtime, saveTrackingData } from './db.js';
+import { initIndexedDB, getAllTracks, getAllPhotos, clearIndexedDBSilent, saveLastPosition, saveTrackingDataRealtime, createInitialTrack } from './db.js';
 import { calculateTrackStats } from './utils.js';
-import { updateCurrentMarker, updateTrackingPath, clearMapData, updateCompass } from './map.js';
+import { updateCurrentMarker, updateTrackingPath, clearMapData } from './map.js';
 import { updateStatus, updateCoordinates, updateDataSizeIfOpen, showClearDataDialog } from './ui.js';
 
 /**
@@ -112,7 +112,7 @@ export async function updatePosition(position) {
     }
 
     updateCurrentMarker(lat, lng, state.currentHeading);
-    updateCompass(state.currentHeading || 0);
+
     updateCoordinates(lat, lng, accuracy, currentDist, currentTimeDiff);
 
     // 記録中は地図を現在地に追従
@@ -247,7 +247,7 @@ export async function startTracking() {
         if (hasData) {
             confirmMessage =
                 `IndexedDBに既存のデータがあります。\n` +
-                `トラック: ${trackStats.trackCount}件（位置記録点: ${trackStats.totalPoints}件）\n` +
+                `記録点数: ${trackStats.totalPoints}件\n` +
                 `写真: ${allPhotos.length}件\n\n`;
         } else {
             confirmMessage = `新規記録を開始しますか？`;
@@ -287,6 +287,18 @@ export async function startTracking() {
     const now = new Date();
     state.setTrackingStartDate(now);
     state.setTrackingStartTime(formatDateTime(now));
+
+    // 初期トラックを作成
+    try {
+        if (state.db) {
+            const trackId = await createInitialTrack(state.trackingStartTime);
+            state.setCurrentTrackId(trackId);
+            console.log(`初期トラックを作成しました。ID: ${trackId}`);
+        }
+    } catch (e) {
+        console.error('初期トラック作成エラー:', e);
+    }
+
     console.log('GPS追跡開始時刻:', state.trackingStartTime);
 
     // Wake Lock取得
@@ -348,7 +360,7 @@ export async function stopTracking() {
     if (state.trackingData.length > 0) {
         const lastPoint = state.trackingData[state.trackingData.length - 1];
         await saveLastPosition(lastPoint.lat, lastPoint.lng, state.map.getZoom());
-        await saveTrackingData();
+        await saveTrackingDataRealtime(); // 最終更新 (新規作成ではなく更新)
         const totalPoints = state.previousTotalPoints + state.trackingData.length;
         updateStatus(`GPS追跡を停止しました (${totalPoints}点記録)`);
     } else {

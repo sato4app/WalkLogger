@@ -143,7 +143,7 @@ export async function saveToFirebase() {
 
         const trackStats = calculateTrackStats(allTracks);
         updateStatus('Firebase保存完了');
-        alert(`Firebaseに保存しました\nプロジェクト名: ${projectName}\nトラック: ${trackStats.trackCount}件（位置記録点: ${trackStats.totalPoints}件）\n写真: ${allPhotos.length}件`);
+        alert(`Firebaseに保存しました\nプロジェクト名: ${projectName}\n記録点数: ${trackStats.totalPoints}件\n写真: ${allPhotos.length}件`);
 
     } catch (error) {
         console.error('Firebase保存エラー:', error);
@@ -323,7 +323,7 @@ export async function loadDocument(doc) {
         const actualPhotos = await getAllPhotos();
 
         updateStatus(`データを読み込みました:\n${doc.id}`);
-        alert(`データを読み込みました\nドキュメント名: ${doc.id}\nトラック: ${trackStats.trackCount}件（位置記録点: ${trackStats.totalPoints}件）\n写真: ${actualPhotos.length}枚`);
+        alert(`データを読み込みました\nドキュメント名: ${doc.id}\n記録点数: ${trackStats.totalPoints}件\n写真: ${actualPhotos.length}枚`);
 
     } catch (error) {
         console.error('ドキュメント読み込みエラー:', error);
