@@ -387,12 +387,7 @@ export async function loadOfficialPoints() {
         // data.points (Array) を展開
         // データ構造: [ [ID, Name, Lat, Lng, Elev], ... ]
         if (data.points && Array.isArray(data.points)) {
-            console.log('[DEBUG] Points count:', data.points.length);
-            if (data.points.length > 0) {
-                console.log('[DEBUG] Sample Point[0]:', data.points[0]);
-            }
-
-            data.points.forEach((pointData, i) => {
+            data.points.forEach(pointData => {
                 let pId, pName, lat, lng;
 
                 if (Array.isArray(pointData)) {
@@ -403,15 +398,11 @@ export async function loadOfficialPoints() {
                     lng = parseFloat(pointData[3]);
                     // elevation = pointData[4]; // 未使用
                 } else {
-                    // オブジェクト形式(念のため残す)
-                    pId = pointData.pointID || pointData.id;
-                    pName = pointData.name;
-                    lat = parseFloat(pointData.latitude || pointData.lat);
-                    lng = parseFloat(pointData.longitude || pointData.lng);
-                }
-
-                if (i < 3) {
-                    console.log(`[DEBUG] Parsed Point[${i}]:`, { pId, pName, lat, lng, original: pointData });
+                    // オブジェクト形式
+                    pId = pointData.pointID || pointData.id || pointData['ポイントID'];
+                    pName = pointData.name || pointData['名称'];
+                    lat = parseFloat(pointData.latitude || pointData.lat || pointData['緯度']);
+                    lng = parseFloat(pointData.longitude || pointData.lng || pointData['経度']);
                 }
 
                 if (!isNaN(lat) && !isNaN(lng)) {
@@ -440,8 +431,6 @@ export async function loadOfficialPoints() {
                     }
                 }
             });
-        } else {
-            console.warn('[DEBUG] data.points is missing or not an array', data);
         }
 
         console.log(`Official Pointsを${count}件表示しました`);
