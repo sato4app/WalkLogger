@@ -120,3 +120,38 @@ export function formatDataSize(bytes) {
         return sizeKB.toPrecision(4) + ' KB';
     }
 }
+/**
+ * 直近のポイントから進行方向を計算
+ * @param {Object} currentPoint - 現在地 {lat, lng}
+ * @param {Array} historyPoints - 過去のポイント配列（新しい順または古い順）
+ * @returns {number} Heading (0-360)
+ */
+export function calculateHeading(currentPoint, historyPoints) {
+    if (!historyPoints || historyPoints.length === 0) return 0;
+
+    // 直近3点を取得 (historyPointsが時系列順(古い->新しい)と仮定)
+    const recentPoints = historyPoints.slice(-3);
+    if (recentPoints.length === 0) return 0;
+
+    // 直近3点の重心（平均）を計算
+    let sumLat = 0;
+    let sumLng = 0;
+    recentPoints.forEach(p => {
+        sumLat += p.lat;
+        sumLng += p.lng;
+    });
+    const avgLat = sumLat / recentPoints.length;
+    const avgLng = sumLng / recentPoints.length;
+
+    // 重心から現在地への方位を計算
+    const lat1 = avgLat * Math.PI / 180;
+    const lat2 = currentPoint.lat * Math.PI / 180;
+    const diffLng = (currentPoint.lng - avgLng) * Math.PI / 180;
+
+    const y = Math.sin(diffLng) * Math.cos(lat2);
+    const x = Math.cos(lat1) * Math.sin(lat2) -
+        Math.sin(lat1) * Math.cos(lat2) * Math.cos(diffLng);
+
+    let bearing = Math.atan2(y, x) * 180 / Math.PI;
+    return (bearing + 360) % 360;
+}

@@ -4,8 +4,8 @@ import { GPS_RECORD_INTERVAL_SEC, GPS_RECORD_DISTANCE_M } from './config.js';
 import * as state from './state.js';
 import { calculateDistance, formatDateTime } from './utils.js';
 import { initIndexedDB, getAllTracks, getAllPhotos, clearIndexedDBSilent, saveLastPosition, saveTrackingDataRealtime, createInitialTrack } from './db.js';
-import { calculateTrackStats } from './utils.js';
-import { updateCurrentMarker, updateTrackingPath, clearMapData } from './map.js';
+import { calculateTrackStats, calculateHeading } from './utils.js';
+import { updateCurrentMarker, updateTrackingPath, clearMapData, addStartMarker } from './map.js';
 import { updateStatus, updateCoordinates, updateDataSizeIfOpen, showClearDataDialog } from './ui.js';
 
 /**
@@ -111,6 +111,7 @@ export async function updatePosition(position) {
         );
     }
 
+
     updateCurrentMarker(lat, lng, state.currentHeading);
 
     updateCoordinates(lat, lng, accuracy, currentDist, currentTimeDiff);
@@ -154,6 +155,11 @@ export async function updatePosition(position) {
             };
 
             state.addTrackingPoint(recordedPoint);
+
+            // 初回記録時（Start Point）にマーカー追加
+            if (state.trackingData.length === 1) {
+                addStartMarker(lat, lng);
+            }
 
             // UI更新（DB保存より先に行う）
             updateTrackingPath(state.trackingData);

@@ -2,9 +2,9 @@
 
 import { STORE_TRACKS, STORE_PHOTOS } from './config.js';
 import * as state from './state.js';
-import { formatPositionData, base64ToBlob, calculateTrackStats } from './utils.js';
+import { formatPositionData, base64ToBlob, calculateTrackStats, calculateHeading } from './utils.js';
 import { getAllTracks, getAllPhotos, getLastPosition, initIndexedDB, clearIndexedDBSilent } from './db.js';
-import { clearMapData, updateTrackingPath, updateCurrentMarker, createArrowIcon, createPhotoIcon, displayPhotoMarkers } from './map.js';
+import { clearMapData, updateTrackingPath, updateCurrentMarker, createArrowIcon, createPhotoIcon, displayPhotoMarkers, addStartMarker } from './map.js';
 import { updateStatus, showDocNameDialog, showDocumentListDialog, showPhotoFromMarker, closeDocumentListDialog } from './ui.js';
 
 /**
@@ -56,7 +56,6 @@ export async function saveToFirebase() {
         // データ取得
         const allTracks = await getAllTracks();
         const allPhotos = await getAllPhotos();
-        const lastPosition = await getLastPosition();
 
         console.log('取得したデータ:', { tracks: allTracks.length, photos: allPhotos.length });
 
@@ -132,7 +131,6 @@ export async function saveToFirebase() {
             userId: currentUser ? currentUser.uid : null,
             startTime: state.trackingStartTime,
             createdAt: firebase.firestore.FieldValue.serverTimestamp(),
-            lastPosition: formatPositionData(lastPosition),
             tracks: formattedTracks,
             photos: formattedPhotos,
             tracksCount: allTracks.length,
@@ -234,9 +232,38 @@ export async function loadDocument(doc) {
             }
         }
 
-        // 最終位置マーカーを表示
-        if (data.lastPosition) {
-            updateCurrentMarker(data.lastPosition.lat, data.lastPosition.lng, state.currentHeading);
+        if (data.tracks && data.tracks.length > 0) {
+            const allPoints = [];
+
+            // 全ポイントを抽出してパスを描画
+            data.tracks.forEach(track => {
+                if (track.points) {
+                    track.points.forEach(point => {
+                        allPoints.push([point.lat, point.lng]);
+                    });
+                }
+            });
+
+            if (allPoints.length > 0) {
+                // パス描画
+                state.trackingPath.setLatLngs(allPoints);
+                state.map.setView(allPoints[0], 15);
+
+                // 開始地点マーカー
+                const startPoint = allPoints[0];
+                addStartMarker(startPoint[0], startPoint[1]);
+
+                // 終了地点（現在地点）マーカー
+                const endPoint = allPoints[allPoints.length - 1];
+
+                // 方角計算
+                // 配列形式([lat, lng])からオブジェクト形式({lat, lng})に変換して渡す必要あり
+                const historyPointsObj = allPoints.map(p => ({ lat: p[0], lng: p[1] }));
+                const endPointObj = { lat: endPoint[0], lng: endPoint[1] };
+
+                const heading = calculateHeading(endPointObj, historyPointsObj);
+                updateCurrentMarker(endPoint[0], endPoint[1], heading);
+            }
         }
 
         // 写真をダウンロード

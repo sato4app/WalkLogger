@@ -9,6 +9,11 @@ import { getLastPosition, getAllPhotos } from './db.js';
  * @param {number} heading - 方角（度）
  * @returns {L.DivIcon}
  */
+/**
+ * 矢印型マーカーアイコンを作成
+ * @param {number} heading - 方角（度）
+ * @returns {L.DivIcon}
+ */
 export function createArrowIcon(heading = 0) {
     return L.divIcon({
         className: 'arrow-marker',
@@ -18,7 +23,20 @@ export function createArrowIcon(heading = 0) {
                 </svg>
             </div>`,
         iconSize: [30, 30],
-        iconAnchor: [15, 15]
+        iconAnchor: [15, 15] // Center of rotation
+    });
+}
+
+/**
+ * 開始地点用（四角）マーカーアイコンを作成
+ * @returns {L.DivIcon}
+ */
+export function createSquareIcon() {
+    return L.divIcon({
+        className: 'square-marker',
+        html: `<div style="width: 14px; height: 14px; background-color: #4CAF50; border: 2px solid white; box-shadow: 0 0 4px rgba(0,0,0,0.5);"></div>`,
+        iconSize: [18, 18],
+        iconAnchor: [9, 9] // Center
     });
 }
 
@@ -41,20 +59,29 @@ export function createPhotoIcon() {
 export async function initMap() {
     let initialPosition = DEFAULT_POSITION;
 
-    try {
-        const lastPos = await getLastPosition();
-        if (lastPos) {
-            initialPosition = {
-                lat: lastPos.lat,
-                lng: lastPos.lng,
-                zoom: lastPos.zoom
-            };
-            console.log('保存された位置から地図を初期化します:', initialPosition);
-        } else {
-            console.log('デフォルト位置（箕面大滝）から地図を初期化します');
-        }
-    } catch (error) {
-        console.warn('位置取得エラー。デフォルト位置を使用します:', error);
+    // 現在位置を取得して初期化
+    if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(
+            (position) => {
+                const lat = position.coords.latitude;
+                const lng = position.coords.longitude;
+                console.log('現在位置から地図を初期化します:', lat, lng);
+                const map = state.map;
+                if (map) {
+                    map.setView([lat, lng], 17);
+                }
+            },
+            (error) => {
+                console.warn('現在位置の取得に失敗しました。デフォルト位置を使用します:', error);
+                const map = state.map;
+                if (map) {
+                    map.setView([DEFAULT_POSITION.lat, DEFAULT_POSITION.lng], DEFAULT_POSITION.zoom);
+                }
+            },
+            { enableHighAccuracy: true, timeout: 5000, maximumAge: 0 }
+        );
+    } else {
+        console.warn('Geolocation APIがサポートされていません。デフォルト位置を使用します。');
     }
 
     const mapInstance = L.map('map', {
@@ -193,6 +220,25 @@ export function addPhotoMarkerToMap(photo, onMarkerClick) {
         marker.on('click', () => onMarkerClick(photo));
     }
 
+    state.addPhotoMarker(marker);
+}
+
+/**
+ * 開始マーカーを表示
+ * @param {number} lat - 緯度
+ * @param {number} lng - 経度
+ */
+export function addStartMarker(lat, lng) {
+    const icon = createSquareIcon();
+    const marker = L.marker([lat, lng], { icon: icon, title: 'Start Point', zIndexOffset: 1000 }).addTo(state.map);
+    // startMarkerというstate変数があれば管理するが、ここでは汎用マーカーとして扱うか、
+    // あるいはStart専用として保持するか検討が必要。
+    // 一旦、photoMarkersなどと同様に管理するか、あるいは単に地図に追加するだけにする。
+    // ここではstateには保存せず、地図に追加するだけとする（クリア時に消えるようにtrackingPathの一部として扱うか？）
+    // clearMapDataで消す必要があるので、state.photoMarkersに加えて管理するか、class付与で消すのが良い。
+    // 既存のstate管理に合わせるため、ここではstate.photoMarkersに追加してしまう（便宜上）。
+    // あるいはtrackingPathと一緒に消えるのであれば、LayerGroupにしたほうがいいかもしれないが、
+    // 現状の実装に合わせてphotoMarkersに追加して管理する。
     state.addPhotoMarker(marker);
 }
 
