@@ -68,7 +68,7 @@ export async function initMap() {
                 console.log('現在位置から地図を初期化します:', lat, lng);
                 const map = state.map;
                 if (map) {
-                    map.setView([lat, lng], 17);
+                    map.setView([lat, lng], 16);
                 }
             },
             (error) => {

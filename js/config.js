@@ -11,7 +11,7 @@ export const STORE_SETTINGS = 'settings';
 export const DEFAULT_POSITION = {
     lat: 34.853667,
     lng: 135.472041,
-    zoom: 13
+    zoom: 15
 };
 
 // GPS記録条件
