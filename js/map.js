@@ -19,7 +19,7 @@ export function createArrowIcon(heading = 0) {
         className: 'arrow-marker',
         html: `<div class="arrow" style="transform: rotate(${heading}deg)">
                 <svg width="30" height="30" viewBox="0 0 30 30">
-                    <path d="M15 5 L25 25 L15 20 L5 25 Z" fill="#FF9800" stroke="#E65100" stroke-width="2"/>
+                    <path d="M15 5 L25 25 L15 20 L5 25 Z" fill="#000080" stroke="#000050" stroke-width="2"/>
                 </svg>
             </div>`,
         iconSize: [30, 30],
@@ -34,7 +34,7 @@ export function createArrowIcon(heading = 0) {
 export function createSquareIcon() {
     return L.divIcon({
         className: 'square-marker',
-        html: `<div style="width: 14px; height: 14px; background-color: #FF9800; border: 2px solid white; box-shadow: 0 0 4px rgba(0,0,0,0.5);"></div>`,
+        html: `<div style="width: 14px; height: 14px; background-color: #000080; border: 2px solid white; box-shadow: 0 0 4px rgba(0,0,0,0.5);"></div>`,
         iconSize: [18, 18],
         iconAnchor: [9, 9] // Center
     });
@@ -110,7 +110,7 @@ export async function initMap() {
     }).addTo(mapInstance);
 
     const trackingPathInstance = L.polyline([], {
-        color: '#FF9800',
+        color: '#000080',
         weight: 4,
         opacity: 0.7
     }).addTo(mapInstance);
