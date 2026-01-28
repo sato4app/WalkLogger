@@ -143,7 +143,7 @@ export async function showPhotoList() {
         if (photos.length === 0) {
             photoGrid.innerHTML = '<p style="grid-column: 1/-1; text-align: center; padding: 40px; color: #666;">保存された写真がありません</p>';
         } else {
-            photos.forEach(photo => {
+            photos.forEach((photo, index) => {
                 const item = document.createElement('div');
                 item.className = 'photo-item';
 
@@ -152,7 +152,7 @@ export async function showPhotoList() {
                 img.alt = '写真';
 
                 item.appendChild(img);
-                item.addEventListener('click', () => showPhotoViewer(photo));
+                item.addEventListener('click', () => showPhotoViewer(photo, photos, index));
                 photoGrid.appendChild(item);
             });
         }
@@ -176,12 +176,67 @@ export function closePhotoList() {
 }
 
 /**
+ * Photo Viewerのナビゲーション初期化
+ */
+export function initPhotoViewerControls() {
+    const prevBtn = document.getElementById('prevPhotoBtn');
+    const nextBtn = document.getElementById('nextPhotoBtn');
+
+    if (prevBtn) {
+        prevBtn.onclick = (e) => {
+            e.stopPropagation();
+            if (currentPhotoIndex > 0) {
+                currentPhotoIndex--;
+                updatePhotoViewerUI(currentPhotoList[currentPhotoIndex], currentPhotoIndex, currentPhotoList.length);
+            }
+        };
+    }
+
+    if (nextBtn) {
+        nextBtn.onclick = (e) => {
+            e.stopPropagation();
+            if (currentPhotoIndex < currentPhotoList.length - 1) {
+                currentPhotoIndex++;
+                updatePhotoViewerUI(currentPhotoList[currentPhotoIndex], currentPhotoIndex, currentPhotoList.length);
+            }
+        };
+    }
+}
+
+let currentPhotoList = [];
+let currentPhotoIndex = -1;
+
+/**
  * 写真を拡大表示
  * @param {Object} photo - 写真データ
+ * @param {Array} allPhotos - 全写真リスト (Optional)
+ * @param {number} index - 写真のインデックス (Optional)
  */
-export function showPhotoViewer(photo) {
+export function showPhotoViewer(photo, allPhotos = [], index = -1) {
+    // If allPhotos is not provided (e.g. from marker), try to find it in current cached list or fetch if needed
+    // For simplicity, if passed from marker, we might accept limited navigation or just single view
+    // But ideally we should be able to navigate even from marker.
+    // However, fetching all photos every time might be heavy. 
+    // Let's assume for now navigation is active if allPhotos is passed.
+
+    if (allPhotos.length > 0) {
+        currentPhotoList = allPhotos;
+        currentPhotoIndex = index;
+    } else {
+        currentPhotoList = [photo];
+        currentPhotoIndex = 0;
+    }
+
+    updatePhotoViewerUI(photo, currentPhotoIndex, currentPhotoList.length);
+    toggleVisibility('photoViewer', true);
+}
+
+function updatePhotoViewerUI(photo, index, total) {
     const viewerImage = document.getElementById('viewerImage');
     const photoInfo = document.getElementById('photoInfo');
+    const counter = document.getElementById('photoCounter');
+    const prevBtn = document.getElementById('prevPhotoBtn');
+    const nextBtn = document.getElementById('nextPhotoBtn');
 
     viewerImage.src = photo.data;
 
@@ -193,7 +248,23 @@ export function showPhotoViewer(photo) {
     }
 
     photoInfo.innerHTML = infoHTML;
-    toggleVisibility('photoViewer', true);
+
+    // Update counter
+    if (total > 1) {
+        counter.textContent = `${index + 1} of ${total}`;
+        counter.style.display = 'block';
+    } else {
+        counter.style.display = 'none';
+    }
+
+    // Update buttons
+    if (total > 1) {
+        prevBtn.style.display = index > 0 ? 'flex' : 'none';
+        nextBtn.style.display = index < total - 1 ? 'flex' : 'none';
+    } else {
+        prevBtn.style.display = 'none';
+        nextBtn.style.display = 'none';
+    }
 }
 
 /**

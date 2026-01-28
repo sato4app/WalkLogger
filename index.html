@@ -152,6 +152,17 @@
     <!-- Photo Viewer Dialog -->
     <div id="photoViewer" class="full-screen-dialog dark-mode hidden">
         <button id="closeViewerBtn" class="close-icon-btn float-right">✕</button>
+        <div id="photoCounter" class="photo-counter"></div>
+        <button id="prevPhotoBtn" class="nav-btn prev-btn">
+            <svg viewBox="0 0 24 24">
+                <path d="M15 18l-6-6 6-6" />
+            </svg>
+        </button>
+        <button id="nextPhotoBtn" class="nav-btn next-btn">
+            <svg viewBox="0 0 24 24">
+                <path d="M9 18l6-6-6-6" />
+            </svg>
+        </button>
         <div class="viewer-content">
             <img id="viewerImage" src="" alt="Photo">
             <div id="photoInfo"></div>

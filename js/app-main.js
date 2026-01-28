@@ -6,7 +6,7 @@ import { initMap, displayPhotoMarkers } from './map.js';
 import { startTracking, stopTracking, handleVisibilityChange, handleDeviceOrientation } from './tracking.js';
 import { takePhoto, closeCameraDialog, capturePhoto, savePhotoWithDirection } from './camera.js';
 import { saveToFirebase, reloadFromFirebase, loadOfficialPoints } from './firebase-ops.js';
-import { updateStatus, showPhotoList, closePhotoList, closePhotoViewer, showDataSize, closeStatsDialog, closeDocumentListDialog, showPhotoFromMarker } from './ui.js';
+import { updateStatus, showPhotoList, closePhotoList, closePhotoViewer, showDataSize, closeStatsDialog, closeDocumentListDialog, showPhotoFromMarker, initPhotoViewerControls } from './ui.js';
 
 /**
  * アプリケーション初期化
@@ -127,6 +127,9 @@ function setupEventListeners() {
 
     // デバイス方角センサー
     setupDeviceOrientation();
+
+    // Photo Viewer Navigation
+    initPhotoViewerControls();
 }
 
 /**
