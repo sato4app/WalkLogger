@@ -11,27 +11,28 @@ let currentPhotoIndex = -1;
  * マーカークリックから写真を表示
  * @param {Object} photo - 写真データ
  */
-export function showPhotoFromMarker(photo) {
-    const img = document.getElementById('viewerImage');
-    const info = document.getElementById('photoInfo');
+export async function showPhotoFromMarker(photo) {
+    try {
+        // ナビゲーションを有効にするために全写真リストを取得
+        const allPhotos = await getAllPhotos();
 
-    img.src = photo.data;
+        let index = -1;
+        if (allPhotos.length > 0) {
+            // タイムスタンプで一致する写真を探す
+            index = allPhotos.findIndex(p => p.timestamp === photo.timestamp);
+        }
 
-    const timestamp = new Date(photo.timestamp).toLocaleString('ja-JP');
-    const location = photo.location
-        ? `緯度: ${photo.location.lat.toFixed(5)}, 経度: ${photo.location.lng.toFixed(5)}`
-        : '位置情報なし';
-    const direction = photo.direction ? `方向: ${photo.direction}` : '';
-
-    info.innerHTML = `撮影日時: ${timestamp}<br>${location}${direction ? '<br>' + direction : ''}`;
-
-    // 単一表示なので、リストは現在の写真だけにする
-    // (マーカーからの起動でも全写真リストを取得してもよいが、重くなるため)
-    currentPhotoList = [photo];
-    currentPhotoIndex = 0;
-    updatePhotoViewerUI(photo, 0, 1);
-
-    toggleVisibility('photoViewer', true);
+        if (index !== -1) {
+            showPhotoViewer(photo, allPhotos, index);
+        } else {
+            console.warn('マーカーの画像がデータベース内で見つかりませんでした。単一表示します。');
+            showPhotoViewer(photo, [photo], 0);
+        }
+    } catch (error) {
+        console.error('showPhotoFromMarkerエラー:', error);
+        // エラー時は単一表示へフォールバック
+        showPhotoViewer(photo, [photo], 0);
+    }
 }
 
 /**
