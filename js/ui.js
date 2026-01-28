@@ -137,7 +137,7 @@ export async function showPhotoList() {
         // Update header with count
         const headerTitle = document.querySelector('#photoListContainer h2');
         if (headerTitle) {
-            headerTitle.textContent = `Photo Gallery (${photos.length})`;
+            headerTitle.textContent = `Photo Gallery (${photos.length} photos)`;
         }
 
         if (photos.length === 0) {
