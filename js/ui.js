@@ -134,6 +134,12 @@ export async function showPhotoList() {
     try {
         const photos = await getAllPhotos();
 
+        // Update header with count
+        const headerTitle = document.querySelector('#photoListContainer h2');
+        if (headerTitle) {
+            headerTitle.textContent = `Photo Gallery (${photos.length})`;
+        }
+
         if (photos.length === 0) {
             photoGrid.innerHTML = '<p style="grid-column: 1/-1; text-align: center; padding: 40px; color: #666;">保存された写真がありません</p>';
         } else {
