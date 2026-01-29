@@ -315,7 +315,8 @@ async function uploadPhotosToStorage(storage, projectName, photos) {
                     storagePath: photoPath,
                     timestamp: photo.timestamp,
                     direction: photo.direction || null,
-                    location: formatPositionData(photo.location)
+                    location: formatPositionData(photo.location),
+                    text: photo.text || null
                 });
 
                 uploadSuccessCount++;
@@ -413,7 +414,8 @@ async function restorePhotos(photosData, db) {
                 data: base64,
                 timestamp: photoData.timestamp,
                 direction: photoData.direction || null,
-                location: photoData.location
+                location: photoData.location,
+                text: photoData.text || null
             };
 
             const transaction = db.transaction([STORE_PHOTOS], 'readwrite');

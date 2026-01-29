@@ -4,7 +4,7 @@ import * as state from './state.js';
 import { initIndexedDB } from './db.js';
 import { initMap, displayPhotoMarkers } from './map.js';
 import { startTracking, stopTracking, handleVisibilityChange, handleDeviceOrientation } from './tracking.js';
-import { takePhoto, closeCameraDialog, capturePhoto, savePhotoWithDirection } from './camera.js';
+import { takePhoto, closeCameraDialog, capturePhoto, savePhotoWithDirection, handleTextButton } from './camera.js';
 import { saveToFirebase, reloadFromFirebase, loadOfficialPoints } from './firebase-ops.js';
 import { updateStatus, showPhotoList, closePhotoList, closePhotoViewer, showDataSize, closeStatsDialog, closeDocumentListDialog, showPhotoFromMarker, initPhotoViewerControls } from './ui.js';
 
@@ -76,6 +76,7 @@ function setupEventListeners() {
     document.getElementById('cameraCloseBtn').addEventListener('click', closeCameraDialog);
     document.getElementById('cameraShutterBtn').addEventListener('click', capturePhoto);
     document.getElementById('cameraBackBtn').addEventListener('click', closeCameraDialog);
+    document.getElementById('cameraTextBtn').addEventListener('click', handleTextButton);
 
     // 方向ボタン
     document.querySelectorAll('.dir-btn').forEach(btn => {

@@ -53,7 +53,7 @@ export async function showPhotoList() {
         // Update header with count
         const headerTitle = document.querySelector('#photoListContainer h2');
         if (headerTitle) {
-            headerTitle.textContent = `Photo Gallery (${photos.length} photos)`;
+            headerTitle.innerHTML = `Photo Gallery<br>(${photos.length} photos)`;
         }
 
         if (photos.length === 0) {
@@ -132,6 +132,10 @@ function updatePhotoViewerUI(photo, index, total) {
         infoHTML += `<br>緯度: ${photo.location.lat.toFixed(5)}<br>経度: ${photo.location.lng.toFixed(5)}`;
     } else {
         infoHTML += '<br>位置情報なし';
+    }
+
+    if (photo.text) {
+        infoHTML += `<br><br><span style="white-space: pre-wrap;">${photo.text}</span>`;
     }
 
     photoInfo.innerHTML = infoHTML;

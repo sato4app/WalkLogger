@@ -1,5 +1,7 @@
 // WalkLogger - カメラ・写真関連
 
+let currentPhotoText = '';
+
 import { PHOTO_WIDTH, PHOTO_HEIGHT, PHOTO_QUALITY } from './config.js';
 import * as state from './state.js';
 import { savePhoto } from './db.js';
@@ -159,6 +161,8 @@ export function capturePhoto() {
     const captureButtons = document.getElementById('captureButtons');
     const directionButtons = document.getElementById('directionButtons');
 
+    currentPhotoText = ''; // Reset text
+
     const srcWidth = cameraPreview.videoWidth;
     const srcHeight = cameraPreview.videoHeight;
 
@@ -220,7 +224,8 @@ export async function savePhotoWithDirection(direction) {
             location: location ? {
                 lat: parseFloat(location.lat.toFixed(5)),
                 lng: parseFloat(location.lng.toFixed(5))
-            } : null
+            } : null,
+            text: currentPhotoText
         };
 
         const photoId = await savePhoto(photoRecord);
@@ -250,4 +255,20 @@ export async function savePhotoWithDirection(direction) {
     }
 
     state.setCapturedPhotoData(null);
+}
+
+/**
+ * テキスト入力ボタン処理
+ */
+export function handleTextButton() {
+    const text = prompt('写真へのメモを入力してください:', currentPhotoText);
+    if (text !== null) {
+        currentPhotoText = text;
+
+        // オプション: 入力されたことを視覚的にフィードバック
+        const updateStatus = document.getElementById('statusText'); // 直接アクセスする場合
+        if (text) {
+            console.log('メモが入力されました:', text);
+        }
+    }
 }
