@@ -99,10 +99,14 @@ WalkLogger - GPS位置記録
   1. カメラダイアログを表示
   2. 背面カメラでプレビュー表示（720x1280pxを希望）
   3. シャッターボタンで撮影
-  4. 方向選択ボタンを表示（左斜め上・上・右斜め上）
+  4. プレビュー確認画面を表示
+      - "Retake"ボタン: 再撮影（カメラ画面に戻る）
+      - "Text"ボタン: テキストメモを入力（プロンプト表示）
+      - 方向ボタン（左・上・右）: 方向を選択して保存
   5. 方向を選択すると:
      - 選択した方向の矢印アイコンを画像下部にスタンプ
      - 現在のGPS位置情報を紐付け
+     - 入力されたテキストメモがある場合は紐付け
      - IndexedDBに保存
      - 地図上に写真マーカー（オレンジ色の丸）を追加
 
@@ -115,7 +119,8 @@ WalkLogger - GPS位置記録
     location: {
         lat: number,   // 緯度（小数点以下5桁）
         lng: number    // 経度（小数点以下5桁）
-    }
+    },
+    text: string       // [任意] 写真へのメモテキスト
 }
 ```
 
@@ -124,7 +129,8 @@ WalkLogger - GPS位置記録
 #### 3.3.1 写真一覧（Listボタン）
 - 保存済み写真をグリッド表示
 - サムネイルクリックで拡大表示
-- 撮影日時、位置情報、方向を表示
+- タイトル「Photo Gallery」と写真数の間に改行を入れて表示
+- 拡大表示時に撮影日時、位置情報、方向、およびテキストメモ（ある場合）を表示
 
 #### 3.3.2 データサイズ表示（Sizeボタン）
 - 表示項目:
@@ -235,7 +241,8 @@ WalkLogger - GPS位置記録
     location: {
         lat: number,
         lng: number
-    }
+    },
+    text: string        // [任意] 写真へのメモテキスト
 }
 ```
 
@@ -270,7 +277,8 @@ projects/
     storagePath: string,  // Storageパス
     timestamp: string,
     direction: string,
-    location: { lat, lng }
+    location: { lat, lng },
+    text: string          // [任意] 写真へのメモテキスト
 }
 ```
 
@@ -340,7 +348,8 @@ projects/
 | 状態 | 表示要素 |
 |------|----------|
 | 撮影前 | カメラプレビュー、シャッターボタン（白丸）、閉じるボタン |
-| 撮影後 | 撮影画像、方向ボタン×3（左・上・右）、閉じるボタン |
+| 撮影前 | カメラプレビュー、シャッターボタン（白丸）、閉じるボタン |
+| 撮影後 | 撮影画像、方向ボタン×3（左・上・右）、Textボタン、Retakeボタン、閉じるボタン |
 
 ---
 
@@ -422,8 +431,12 @@ WalkLogger/
 │   ├── map.js              # 地図表示・マーカー管理
 │   ├── tracking.js         # GPS追跡・位置更新
 │   ├── camera.js           # カメラ・写真撮影
+│   ├── camera.js           # カメラ・写真撮影
 │   ├── firebase-ops.js     # Firebase操作
-│   ├── ui.js               # UI・ダイアログ管理
+│   ├── ui.js               # UIモジュール統合 (re-export)
+│   ├── ui-common.js        # 共通UI関数
+│   ├── ui-photo.js         # 写真関連UI
+│   ├── ui-dialog.js        # ダイアログ関連UI
 │   ├── firebase-config.js  # Firebase設定
 │   └── firebase-config.template.js  # Firebase設定テンプレート
 ├── icons/
@@ -438,8 +451,6 @@ WalkLogger/
 
 ### 10.1 モジュール構成
 
-| モジュール | 役割 | 主要エクスポート |
-|-----------|------|-----------------|
 | config.js | 定数・設定 | DB_NAME, GPS_RECORD_*, PHOTO_* |
 | state.js | 状態管理 | map, isTracking, trackingData 等 |
 | utils.js | 汎用関数 | formatDateTime, calculateDistance 等 |
@@ -448,7 +459,10 @@ WalkLogger/
 | tracking.js | GPS追跡 | startTracking, stopTracking 等 |
 | camera.js | カメラ | takePhoto, capturePhoto 等 |
 | firebase-ops.js | Firebase | saveToFirebase, reloadFromFirebase 等 |
-| ui.js | UI操作 | showPhotoList, showDataSize 等 |
+| ui.js | UI統合 | (ui-common, ui-photo, ui-dialogの統合) |
+| ui-common.js | 共通UI | updateStatus, toggleVisibility 等 |
+| ui-photo.js | 写真UI | showPhotoList, showPhotoViewer 等 |
+| ui-dialog.js | ダイアログ | showDataSize, showDocumentListDialog 等 |
 | app-main.js | 初期化 | initApp, setupEventListeners 等 |
 
 ---
@@ -459,3 +473,4 @@ WalkLogger/
 |------|-----------|------|
 | 2026-01-22 | 202601 | 初版作成（現行コードからの機能仕様書化） |
 | 2026-01-24 | 202601 | GPS記録条件にGPS精度チェックを追加、写真解像度を720x1280pxに固定、写真品質を0.6に変更、コードをES6モジュール構成にリファクタリング（10モジュール）、ファイル構成を更新 |
+| 2026-01-29 | 202601 | 写真撮影時にテキストメモを追加する機能を実装（Textボタン）、Photo Galleryのタイトル表示を調整、保存データ構造にtextフィールドを追加 |
