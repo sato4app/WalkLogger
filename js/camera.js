@@ -4,7 +4,7 @@ let currentPhotoText = '';
 
 import { PHOTO_WIDTH, PHOTO_HEIGHT, PHOTO_QUALITY } from './config.js';
 import * as state from './state.js';
-import { savePhoto, updatePhoto } from './db.js';
+import { savePhoto, updatePhoto, getPhoto } from './db.js';
 import { addPhotoMarkerToMap, removePhotoMarker } from './map.js';
 import { updateStatus, updateDataSizeIfOpen, showPhotoFromMarker } from './ui.js';
 
@@ -302,10 +302,36 @@ export function handleTextButton() {
     if (text !== null) {
         currentPhotoText = text;
 
-        // オプション: 入力されたことを視覚的にフィードバック
-        const updateStatus = document.getElementById('statusText'); // 直接アクセスする場合
         if (text) {
             console.log('メモが入力されました:', text);
+        }
+
+        // すでに保存済みの写真がある場合は、テキストを即時反映して保存
+        if (state.currentPhotoId) {
+            getPhoto(state.currentPhotoId).then(photo => {
+                if (photo) {
+                    photo.text = currentPhotoText;
+                    return updatePhoto(photo).then(() => {
+                        console.log('写真のテキストを更新しました。ID:', photo.id);
+
+                        // マーカー更新
+                        removePhotoMarker(photo.id);
+                        addPhotoMarkerToMap(photo, showPhotoFromMarker);
+
+                        updateStatus('メモを保存しました');
+                        setTimeout(() => {
+                            if (state.isTracking) {
+                                // updateStatus...
+                            } else {
+                                // updateStatus...
+                            }
+                        }, 2000);
+                    });
+                }
+            }).catch(error => {
+                console.error('テキスト保存エラー:', error);
+                alert('メモの保存に失敗しました');
+            });
         }
     }
 }

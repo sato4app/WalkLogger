@@ -154,6 +154,28 @@ export function getAllPhotos() {
     });
 }
 
+
+/**
+ * 写真を1件取得
+ * @param {number} id - 写真ID
+ * @returns {Promise<Object>} 写真データ
+ */
+export function getPhoto(id) {
+    return new Promise((resolve, reject) => {
+        if (!state.db) {
+            reject(new Error('データベースが初期化されていません'));
+            return;
+        }
+
+        const transaction = state.db.transaction([STORE_PHOTOS], 'readonly');
+        const store = transaction.objectStore(STORE_PHOTOS);
+        const request = store.get(id);
+
+        request.onsuccess = () => resolve(request.result);
+        request.onerror = () => reject(request.error);
+    });
+}
+
 /**
  * 写真をIndexedDBに保存
  * @param {Object} photoRecord - 写真データ
