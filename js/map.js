@@ -142,6 +142,8 @@ export async function displayPhotoMarkers(onMarkerClick) {
                     title: `${new Date(photo.timestamp).toLocaleString('ja-JP')}${directionText}`
                 }).addTo(state.map);
 
+                marker.photoId = photo.id;
+
                 if (onMarkerClick) {
                     marker.on('click', () => onMarkerClick(photo));
                 }
@@ -223,11 +225,28 @@ export function addPhotoMarkerToMap(photo, onMarkerClick) {
         title: `${new Date(photo.timestamp).toLocaleString('ja-JP')} - ${photo.direction || ''}`
     }).addTo(state.map);
 
+    // IDを保持
+    marker.photoId = photo.id;
+
     if (onMarkerClick) {
         marker.on('click', () => onMarkerClick(photo));
     }
 
     state.addPhotoMarker(marker);
+}
+
+/**
+ * 写真マーカーを削除 (ID指定)
+ * @param {number} photoId
+ */
+export function removePhotoMarker(photoId) {
+    const index = state.photoMarkers.findIndex(m => m.photoId === photoId);
+    if (index !== -1) {
+        const marker = state.photoMarkers[index];
+        state.map.removeLayer(marker);
+        state.photoMarkers.splice(index, 1);
+        console.log('マーカーを削除しました:', photoId);
+    }
 }
 
 /**

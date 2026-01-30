@@ -176,6 +176,28 @@ export function savePhoto(photoRecord) {
 }
 
 /**
+ * 写真をIndexedDBで更新
+ * @param {Object} photoRecord - 更新する写真データ (idを含むこと)
+ * @returns {Promise<number>} 更新されたID
+ */
+export function updatePhoto(photoRecord) {
+    return new Promise((resolve, reject) => {
+        if (!state.db) {
+            reject(new Error('データベースが初期化されていません'));
+            return;
+        }
+
+        const transaction = state.db.transaction([STORE_PHOTOS], 'readwrite');
+        const store = transaction.objectStore(STORE_PHOTOS);
+        // IDが含まれていれば更新、なければ新規追加（ただし呼び出し側で通常IDを含める）
+        const request = store.put(photoRecord);
+
+        request.onsuccess = () => resolve(request.result);
+        request.onerror = () => reject(request.error);
+    });
+}
+
+/**
  * トラックの初期レコードを作成
  * @param {string} timestamp
  * @returns {Promise<number>} trackId

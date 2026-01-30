@@ -24,7 +24,9 @@ export let wakeLock = null;
 // カメラ関連
 export let cameraStream = null;
 export let capturedPhotoData = null;
+export let capturedPhotoLocation = null;
 export let photosInSession = 0;
+export let currentPhotoId = null;
 
 // IndexedDB
 export let db = null;
@@ -49,8 +51,11 @@ export function setPreviousTotalPoints(value) { previousTotalPoints = value; }
 export function setCurrentTrackId(value) { currentTrackId = value; }
 export function setWakeLock(value) { wakeLock = value; }
 export function setCameraStream(value) { cameraStream = value; }
+
 export function setCapturedPhotoData(value) { capturedPhotoData = value; }
+export function setCapturedPhotoLocation(value) { capturedPhotoLocation = value; }
 export function setPhotosInSession(value) { photosInSession = value; }
+export function setCurrentPhotoId(value) { currentPhotoId = value; }
 export function setDb(value) { db = value; }
 export function setFirebaseAuthReady(value) { firebaseAuthReady = value; }
 

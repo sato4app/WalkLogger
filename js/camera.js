@@ -4,8 +4,8 @@ let currentPhotoText = '';
 
 import { PHOTO_WIDTH, PHOTO_HEIGHT, PHOTO_QUALITY } from './config.js';
 import * as state from './state.js';
-import { savePhoto } from './db.js';
-import { addPhotoMarkerToMap } from './map.js';
+import { savePhoto, updatePhoto } from './db.js';
+import { addPhotoMarkerToMap, removePhotoMarker } from './map.js';
 import { updateStatus, updateDataSizeIfOpen, showPhotoFromMarker } from './ui.js';
 
 /**
@@ -156,6 +156,10 @@ export function closeCameraDialog() {
 /**
  * 写真を撮影（シャッターボタン）
  */
+
+/**
+ * 写真を撮影（シャッターボタン）
+ */
 export function capturePhoto() {
     const cameraPreview = document.getElementById('cameraPreview');
     const capturedCanvas = document.getElementById('capturedCanvas');
@@ -163,6 +167,7 @@ export function capturePhoto() {
     const directionButtons = document.getElementById('directionButtons');
 
     currentPhotoText = ''; // Reset text
+    state.setCurrentPhotoId(null); // Reset ID for new photo (overwrite mode off initially)
 
     const srcWidth = cameraPreview.videoWidth;
     const srcHeight = cameraPreview.videoHeight;
@@ -187,12 +192,22 @@ export function capturePhoto() {
     ctx.drawImage(cameraPreview, cropX, cropY, cropWidth, cropHeight, 0, 0, PHOTO_WIDTH, PHOTO_HEIGHT);
 
     state.setCapturedPhotoData(capturedCanvas.toDataURL('image/jpeg', PHOTO_QUALITY));
+
+    // 撮影時の位置情報を保持
+    const location = state.currentMarker ? state.currentMarker.getLatLng() : null;
+    state.setCapturedPhotoLocation(location);
+
     console.log(`写真撮影: ${PHOTO_WIDTH}x${PHOTO_HEIGHT}px にリサイズ（元: ${srcWidth}x${srcHeight}px）`);
 
     if (state.cameraStream) {
         state.cameraStream.getTracks().forEach(track => track.stop());
         state.setCameraStream(null);
     }
+    state.setCapturedPhotoData(null); // This line seemed out of place in diff, but let's check. Ah, previous change added it in closeCameraDialog, not here. Wait.
+    // In previous change, I added setCapturedPhotoData(null) to closeCameraDialog.
+    // Here we are in capturePhoto. We set the data here. So we should NOT set it to null here.
+    // The diff from previous steps might be confusing. 
+    // Let's stick to the plan: setCapturedPhotoData IS set here. Location is set here. ID is reset.
 
     cameraPreview.classList.add('hidden');
     capturedCanvas.classList.remove('hidden');
@@ -216,11 +231,12 @@ export async function savePhotoWithDirection(direction) {
         const stampedPhotoData = await drawArrowStamp(state.capturedPhotoData, direction);
         console.log('矢印スタンプを画像に合成しました:', direction);
 
-        const location = state.currentMarker ? state.currentMarker.getLatLng() : null;
+        // state.capturedPhotoLocation を使用 (撮影時の位置)
+        const location = state.capturedPhotoLocation;
 
         const photoRecord = {
             data: stampedPhotoData,
-            timestamp: new Date().toISOString(),
+            timestamp: new Date().toISOString(), // Timestamp updates on overwrite? Prompt says "overwrite direction", implies update.
             direction: direction,
             location: location ? {
                 lat: parseFloat(location.lat.toFixed(5)),
@@ -229,19 +245,37 @@ export async function savePhotoWithDirection(direction) {
             text: currentPhotoText
         };
 
-        const photoId = await savePhoto(photoRecord);
-        console.log('写真を保存しました。ID:', photoId, '方向:', direction);
-        state.setPhotosInSession(state.photosInSession + 1);
+        let photoId;
+
+        if (state.currentPhotoId) {
+            // 上書き保存
+            photoRecord.id = state.currentPhotoId;
+            // 既存のタイムスタンプを維持するべきか？今の実装では更新日時になる。
+            // 指示は「方向を上書きして」なので、データとしては最新の状態にするのが自然。
+            await updatePhoto(photoRecord);
+            photoId = state.currentPhotoId;
+            console.log('写真を更新しました。ID:', photoId, '方向:', direction);
+
+            // 地図上のマーカーを更新（削除して追加）
+            removePhotoMarker(photoId);
+        } else {
+            // 新規保存
+            photoId = await savePhoto(photoRecord);
+            state.setCurrentPhotoId(photoId);
+            console.log('写真を新規保存しました。ID:', photoId, '方向:', direction);
+            state.setPhotosInSession(state.photosInSession + 1);
+        }
 
         if (location) {
+            // photoRecordにIDを含めて渡す必要がある（map.jsの修正により）
+            photoRecord.id = photoId;
             addPhotoMarkerToMap(photoRecord, showPhotoFromMarker);
         }
 
         // closeCameraDialog(); // 連続撮影・確認のため閉じない
-        updateStatus(`写真を保存しました（方向: ${direction}）`);
+        updateStatus(`写真を${state.currentPhotoId ? '更新' : '保存'}しました（方向: ${direction}）`);
 
         setTimeout(() => {
-            // updateStatus(`方向を選択してください`); // 元に戻す？
             if (state.isTracking) {
                 // updateStatus(`GPS追跡中 (${state.trackingData.length}点記録)`);
             } else {
@@ -256,7 +290,7 @@ export async function savePhotoWithDirection(direction) {
         alert('写真の保存に失敗しました: ' + error.message);
     }
 
-    // state.setCapturedPhotoData(null); // 連続操作のため保持
+    // データは保持する（連続操作のため）
 }
 
 /**
