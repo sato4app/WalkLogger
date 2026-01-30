@@ -397,6 +397,13 @@ body {
     max-height: 70vh;
     border-radius: 8px;
     box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+    touch-action: none;
+    transform-origin: center center;
+    cursor: grab;
+}
+
+#viewerImage:active {
+    cursor: grabbing;
 }
 
 #photoInfo {

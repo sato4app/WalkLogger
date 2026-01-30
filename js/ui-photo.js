@@ -6,6 +6,7 @@ import { toggleVisibility, updateStatus } from './ui-common.js';
 
 let currentPhotoList = [];
 let currentPhotoIndex = -1;
+let zoomController = null;
 
 /**
  * マーカークリックから写真を表示
@@ -108,6 +109,15 @@ export function showPhotoViewer(photo, allPhotos = [], index = -1) {
 
     updatePhotoViewerUI(photo, currentPhotoIndex, currentPhotoList.length);
     toggleVisibility('photoViewer', true);
+
+    // Initialize or reset zoom
+    const viewerImage = document.getElementById('viewerImage');
+    if (!zoomController && viewerImage) {
+        zoomController = new ImageZoom(viewerImage);
+    }
+    if (zoomController) {
+        zoomController.reset();
+    }
 }
 
 /**
@@ -156,6 +166,11 @@ function updatePhotoViewerUI(photo, index, total) {
         if (prevBtn) prevBtn.style.display = 'none';
         if (nextBtn) nextBtn.style.display = 'none';
     }
+
+    // Reset zoom when photo changes
+    if (zoomController) {
+        zoomController.reset();
+    }
 }
 
 /**
@@ -166,6 +181,9 @@ export function closePhotoViewer() {
     if (state.isTracking) {
         const totalPoints = state.previousTotalPoints + state.trackingData.length;
         updateStatus(`GPS追跡中 (${totalPoints}点記録)`);
+    }
+    if (zoomController) {
+        zoomController.reset();
     }
 }
 
@@ -194,5 +212,161 @@ export function initPhotoViewerControls() {
                 updatePhotoViewerUI(currentPhotoList[currentPhotoIndex], currentPhotoIndex, currentPhotoList.length);
             }
         };
+    }
+}
+
+/**
+ * Image Zoom Controller
+ */
+class ImageZoom {
+    constructor(element) {
+        this.element = element;
+        this.scale = 1;
+        this.pointX = 0;
+        this.pointY = 0;
+        this.startX = 0;
+        this.startY = 0;
+        this.isPanning = false;
+
+        // Touch state
+        this.initialDistance = 0;
+        this.initialScale = 1;
+
+        // Bind methods
+        this.handleMouseDown = this.handleMouseDown.bind(this);
+        this.handleMouseMove = this.handleMouseMove.bind(this);
+        this.handleMouseUp = this.handleMouseUp.bind(this);
+        this.handleWheel = this.handleWheel.bind(this);
+        this.handleTouchStart = this.handleTouchStart.bind(this);
+        this.handleTouchMove = this.handleTouchMove.bind(this);
+        this.handleTouchEnd = this.handleTouchEnd.bind(this);
+
+        this.init();
+    }
+
+    init() {
+        this.element.addEventListener('mousedown', this.handleMouseDown);
+        this.element.addEventListener('wheel', this.handleWheel, { passive: false });
+        this.element.addEventListener('touchstart', this.handleTouchStart, { passive: false });
+        this.element.addEventListener('touchmove', this.handleTouchMove, { passive: false });
+        this.element.addEventListener('touchend', this.handleTouchEnd);
+    }
+
+    reset() {
+        this.scale = 1;
+        this.pointX = 0;
+        this.pointY = 0;
+        this.updateTransform();
+    }
+
+    updateTransform() {
+        this.element.style.transform = `translate(${this.pointX}px, ${this.pointY}px) scale(${this.scale})`;
+    }
+
+    handleMouseDown(e) {
+        if (this.scale === 1) return; // Only pan if zoomed in
+        e.preventDefault();
+        this.startX = e.clientX - this.pointX;
+        this.startY = e.clientY - this.pointY;
+        this.isPanning = true;
+        this.element.style.cursor = 'grabbing';
+
+        window.addEventListener('mousemove', this.handleMouseMove);
+        window.addEventListener('mouseup', this.handleMouseUp);
+    }
+
+    handleMouseMove(e) {
+        if (!this.isPanning) return;
+        e.preventDefault();
+        this.pointX = e.clientX - this.startX;
+        this.pointY = e.clientY - this.startY;
+        this.updateTransform();
+    }
+
+    handleMouseUp(e) {
+        this.isPanning = false;
+        this.element.style.cursor = 'grab';
+        window.removeEventListener('mousemove', this.handleMouseMove);
+        window.removeEventListener('mouseup', this.handleMouseUp);
+    }
+
+    handleWheel(e) {
+        e.preventDefault();
+        const xs = (e.clientX - this.pointX) / this.scale;
+        const ys = (e.clientY - this.pointY) / this.scale;
+        const delta = -e.deltaY;
+
+        const oldScale = this.scale;
+        this.scale += delta * 0.001 * this.scale; // Proportional zoom
+        this.scale = Math.min(Math.max(1, this.scale), 10); // Clamp 1x to 10x
+
+        // Adjust position to zoom towards mouse pointer
+        if (this.scale !== oldScale) {
+            this.pointX = e.clientX - xs * this.scale;
+            this.pointY = e.clientY - ys * this.scale;
+            // Center correction if fully zoomed out
+            if (this.scale === 1) {
+                this.pointX = 0;
+                this.pointY = 0;
+            }
+            this.updateTransform();
+        }
+    }
+
+    getDistance(touches) {
+        return Math.hypot(
+            touches[0].clientX - touches[1].clientX,
+            touches[0].clientY - touches[1].clientY
+        );
+    }
+
+    getCenter(touches) {
+        return {
+            x: (touches[0].clientX + touches[1].clientX) / 2,
+            y: (touches[0].clientY + touches[1].clientY) / 2
+        };
+    }
+
+    handleTouchStart(e) {
+        if (e.touches.length === 2) {
+            e.preventDefault();
+            this.initialDistance = this.getDistance(e.touches);
+            this.initialScale = this.scale;
+        } else if (e.touches.length === 1 && this.scale > 1) {
+            // Pan init
+            this.startX = e.touches[0].clientX - this.pointX;
+            this.startY = e.touches[0].clientY - this.pointY;
+            this.isPanning = true;
+        }
+    }
+
+    handleTouchMove(e) {
+        if (e.touches.length === 2) {
+            e.preventDefault();
+            const currentDistance = this.getDistance(e.touches);
+            if (this.initialDistance > 0) {
+                this.scale = this.initialScale * (currentDistance / this.initialDistance);
+                this.scale = Math.min(Math.max(1, this.scale), 10);
+                this.updateTransform();
+            }
+        } else if (e.touches.length === 1 && this.isPanning && this.scale > 1) {
+            e.preventDefault(); // Prevent scroll while panning
+            this.pointX = e.touches[0].clientX - this.startX;
+            this.pointY = e.touches[0].clientY - this.startY;
+            this.updateTransform();
+        }
+    }
+
+    handleTouchEnd(e) {
+        if (e.touches.length < 2) {
+            this.initialDistance = 0;
+        }
+        if (e.touches.length === 0) {
+            this.isPanning = false;
+            // Reset to center if scale is 1
+            if (this.scale <= 1) {
+                this.reset();
+            }
+        }
     }
 }
