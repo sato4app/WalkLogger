@@ -577,6 +577,17 @@ body {
     justify-content: center;
     cursor: pointer;
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+    transition: all 0.2s;
+}
+
+.dir-btn.selected {
+    background: #2196F3;
+    box-shadow: 0 0 0 4px rgba(33, 150, 243, 0.3);
+    transform: scale(1.1);
+}
+
+.dir-btn.selected svg {
+    stroke: white;
 }
 
 .dir-btn svg {

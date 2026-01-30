@@ -203,6 +203,9 @@ export function capturePhoto() {
     captureButtons.classList.add('hidden');
     directionButtons.classList.remove('hidden');
 
+    // 方向ボタンの選択状態をリセット
+    document.querySelectorAll('.dir-btn').forEach(btn => btn.classList.remove('selected'));
+
     updateStatus('方向を選択してください');
 }
 
@@ -217,6 +220,15 @@ export async function savePhotoWithDirection(direction) {
     }
 
     try {
+        // 方向ボタンのスタイル更新
+        document.querySelectorAll('.dir-btn').forEach(btn => {
+            if (btn.dataset.direction === direction) {
+                btn.classList.add('selected');
+            } else {
+                btn.classList.remove('selected');
+            }
+        });
+
         const stampedPhotoData = await drawArrowStamp(state.capturedPhotoData, direction);
         console.log('矢印スタンプを画像に合成しました:', direction);
 
