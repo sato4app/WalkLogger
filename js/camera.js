@@ -153,13 +153,7 @@ export function closeCameraDialog() {
     updateStatus(state.isTracking ? `GPS追跡中 (${state.trackingData.length}点記録)` : 'GPS待機中...');
 }
 
-/**
- * 写真を撮影（シャッターボタン）
- */
 
-/**
- * 写真を撮影（シャッターボタン）
- */
 export function capturePhoto() {
     const cameraPreview = document.getElementById('cameraPreview');
     const capturedCanvas = document.getElementById('capturedCanvas');
@@ -203,11 +197,6 @@ export function capturePhoto() {
         state.cameraStream.getTracks().forEach(track => track.stop());
         state.setCameraStream(null);
     }
-    state.setCapturedPhotoData(null); // This line seemed out of place in diff, but let's check. Ah, previous change added it in closeCameraDialog, not here. Wait.
-    // In previous change, I added setCapturedPhotoData(null) to closeCameraDialog.
-    // Here we are in capturePhoto. We set the data here. So we should NOT set it to null here.
-    // The diff from previous steps might be confusing. 
-    // Let's stick to the plan: setCapturedPhotoData IS set here. Location is set here. ID is reset.
 
     cameraPreview.classList.add('hidden');
     capturedCanvas.classList.remove('hidden');
