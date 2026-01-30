@@ -148,6 +148,7 @@ export function closeCameraDialog() {
         state.cameraStream.getTracks().forEach(track => track.stop());
         state.setCameraStream(null);
     }
+    state.setCapturedPhotoData(null);
 
     updateStatus(state.isTracking ? `GPS追跡中 (${state.trackingData.length}点記録)` : 'GPS待機中...');
 }
@@ -236,14 +237,15 @@ export async function savePhotoWithDirection(direction) {
             addPhotoMarkerToMap(photoRecord, showPhotoFromMarker);
         }
 
-        closeCameraDialog();
+        // closeCameraDialog(); // 連続撮影・確認のため閉じない
         updateStatus(`写真を保存しました（方向: ${direction}）`);
 
         setTimeout(() => {
+            // updateStatus(`方向を選択してください`); // 元に戻す？
             if (state.isTracking) {
-                updateStatus(`GPS追跡中 (${state.trackingData.length}点記録)`);
+                // updateStatus(`GPS追跡中 (${state.trackingData.length}点記録)`);
             } else {
-                updateStatus('GPS待機中...');
+                // updateStatus('GPS待機中...');
             }
         }, 2000);
 
@@ -254,7 +256,7 @@ export async function savePhotoWithDirection(direction) {
         alert('写真の保存に失敗しました: ' + error.message);
     }
 
-    state.setCapturedPhotoData(null);
+    // state.setCapturedPhotoData(null); // 連続操作のため保持
 }
 
 /**

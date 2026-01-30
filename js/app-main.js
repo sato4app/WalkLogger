@@ -77,6 +77,7 @@ function setupEventListeners() {
     document.getElementById('cameraShutterBtn').addEventListener('click', capturePhoto);
     document.getElementById('cameraBackBtn').addEventListener('click', closeCameraDialog);
     document.getElementById('cameraTextBtn').addEventListener('click', handleTextButton);
+    document.getElementById('cameraCloseAfterShotBtn').addEventListener('click', closeCameraDialog);
 
     // 方向ボタン
     document.querySelectorAll('.dir-btn').forEach(btn => {
