@@ -1,7 +1,7 @@
 // WalkLogger Service Worker
 // PWA対応: オフライン機能とキャッシュ管理
 
-const CACHE_NAME = 'walklogger-v5';
+const CACHE_NAME = 'walklogger-v6';
 const urlsToCache = [
   './',
   './index.html',
@@ -19,7 +19,10 @@ const urlsToCache = [
   './js/firebase-ops.js',
   './js/ui.js',
   'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css',
-  'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js'
+  'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js',
+  './icons/icon-180.png',
+  './icons/icon-192.png',
+  './icons/icon-512.png'
 ];
 
 // Service Workerのインストール
