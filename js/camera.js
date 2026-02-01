@@ -154,14 +154,14 @@ export function closeCameraDialog() {
 }
 
 
-export function capturePhoto() {
+export async function capturePhoto() {
     const cameraPreview = document.getElementById('cameraPreview');
     const capturedCanvas = document.getElementById('capturedCanvas');
     const captureButtons = document.getElementById('captureButtons');
     const directionButtons = document.getElementById('directionButtons');
 
     currentPhotoText = ''; // Reset text
-    state.setCurrentPhotoId(null); // Reset ID for new photo (overwrite mode off initially)
+    state.setCurrentPhotoId(null); // Reset ID
 
     const srcWidth = cameraPreview.videoWidth;
     const srcHeight = cameraPreview.videoHeight;
@@ -205,6 +205,35 @@ export function capturePhoto() {
 
     // 方向ボタンの選択状態をリセット
     document.querySelectorAll('.dir-btn').forEach(btn => btn.classList.remove('selected'));
+
+    // 即時保存 (IndexedDB)
+    try {
+        const photoRecord = {
+            data: state.capturedPhotoData,
+            timestamp: new Date().toISOString(),
+            direction: '',
+            location: location ? {
+                lat: parseFloat(location.lat.toFixed(5)),
+                lng: parseFloat(location.lng.toFixed(5))
+            } : null,
+            text: ''
+        };
+
+        const photoId = await savePhoto(photoRecord);
+        state.setCurrentPhotoId(photoId);
+        state.setPhotosInSession(state.photosInSession + 1);
+        console.log('写真を一時保存しました。ID:', photoId);
+
+        if (location) {
+            photoRecord.id = photoId;
+            addPhotoMarkerToMap(photoRecord, showPhotoFromMarker);
+        }
+        updateDataSizeIfOpen();
+
+    } catch (error) {
+        console.error('写真一時保存エラー:', error);
+        alert('写真の保存に失敗しましたが、撮影は継続できます');
+    }
 
     updateStatus('方向を選択してください');
 }
